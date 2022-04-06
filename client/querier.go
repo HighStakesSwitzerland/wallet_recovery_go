@@ -34,14 +34,15 @@ type QueryAccountRes struct {
 }
 
 func (lcd LCDClient) GetBalance(ctx context.Context, address msg.AccAddress) (res *types.QueryBalanceResponse, err error) {
-	resp, err := ctxhttp.Get(ctx, lcd.c, lcd.URL+fmt.Sprintf("/cosmos/bank/v1beta1/balances/%s", address))
+
+	resp, err := ctxhttp.Get(ctx, lcd.c, lcd.URL+fmt.Sprintf("/cosmos/bank/v1beta1/balances/%s/by_demon?denom=%s", address.String(), "uust"))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("LCD call failed: %s", err.Error())
 	}
 	defer resp.Body.Close()
 	out, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("LCD read failed: %s", err.Error())
 	}
 
 	if resp.StatusCode != 200 {
@@ -50,9 +51,7 @@ func (lcd LCDClient) GetBalance(ctx context.Context, address msg.AccAddress) (re
 
 	var response types.QueryBalanceResponse
 	err = lcd.EncodingConfig.Marshaler.UnmarshalJSON(out, &response)
-
 	return &response, nil
-
 }
 
 // LoadAccount simulates gas and fee for a transaction

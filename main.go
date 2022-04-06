@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/HighStakesSwitzerland/wallet_recovery_go/client"
 	"github.com/HighStakesSwitzerland/wallet_recovery_go/key"
 	"github.com/HighStakesSwitzerland/wallet_recovery_go/msg"
@@ -16,16 +17,19 @@ var (
 )
 
 func main() {
-	mnemonic := "essence gallery exit illegal nasty luxury sport trouble measure benefit busy almost bulb fat shed today produce glide meadow require impact fruit omit weasel"
+	mnemonic := "turn reform life recycle tongue zero run alter trim vibrant note bulk cushion vapor awake barrel inflict pottery cup hurry link nephew chicken bubble"
 	privKeyBz, err := key.DerivePrivKeyBz(mnemonic, key.CreateHDPath(0, 0))
 	if err != nil {
 		logger.Error("Error creating priv key", err)
+		return
 	}
 	privKey, err := key.PrivKeyGen(privKeyBz)
 	if err != nil {
 		logger.Error("Error creating priv key", err)
+		return
 	}
 	addr := msg.AccAddress(privKey.PubKey().Address())
+	logger.Info(fmt.Sprintf("address: [%s]", addr.String()))
 
 	// Create LCDClient
 	LCDClient := client.NewLCDClient(
@@ -34,12 +38,13 @@ func main() {
 		msg.NewDecCoinFromDec("uusd", msg.NewDecFromIntWithPrec(msg.NewInt(20), 2)), // 0.15uusd
 		msg.NewDecFromIntWithPrec(msg.NewInt(15), 1),                                // gas
 		privKey,
-		time.Millisecond, // tx timeout super short
+		time.Second, // tx timeout super short
 	)
 
 	balance, err := LCDClient.GetBalance(context.Background(), addr)
 	if err != nil {
 		logger.Error("Cannot get balance", err)
+		return
 	}
 	logger.Info("Balance is", balance)
 
@@ -47,11 +52,13 @@ func main() {
 	toAddr, err := msg.AccAddressFromBech32("terra1t849fxw7e8ney35mxemh4h3ayea4zf77dslwna")
 	if err != nil {
 		logger.Error("Error creating destination address", err)
+		return
 	}
 
 	account, err := LCDClient.LoadAccount(context.Background(), addr)
 	if err != nil {
 		logger.Error("Error loading address", err)
+		return
 	}
 
 	tx, err := LCDClient.CreateAndSignTx(
@@ -68,12 +75,14 @@ func main() {
 
 	if err != nil {
 		logger.Error("Error creating transaction", err)
+		return
 	}
 
 	// Broadcast
 	res, err := LCDClient.Broadcast(context.Background(), tx)
 	if err != nil {
 		logger.Error("Error broadcasting tx", err)
+		return
 	}
 	logger.Info("Sucess:", res)
 }

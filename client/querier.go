@@ -33,7 +33,7 @@ type QueryAccountRes struct {
 	Account QueryAccountResData `json:"account"`
 }
 
-func (lcd LCDClient) GetBalance(ctx context.Context, address msg.AccAddress) (res *types.QueryBalanceResponse, err error) {
+func (lcd LCDClient) GetBalance(ctx context.Context, address msg.AccAddress) (res *types.Balance, err error) {
 
 	resp, err := ctxhttp.Get(ctx, lcd.c, lcd.URL+fmt.Sprintf("/cosmos/bank/v1beta1/balances/%s/by_demon?denom=%s", address.String(), "uust"))
 	if err != nil {
@@ -49,7 +49,7 @@ func (lcd LCDClient) GetBalance(ctx context.Context, address msg.AccAddress) (re
 		return nil, fmt.Errorf("non 200 status code received: %d %s", resp.StatusCode, resp.Status)
 	}
 
-	var response types.QueryBalanceResponse
+	var response types.Balance
 	err = lcd.EncodingConfig.Marshaler.UnmarshalJSON(out, &response)
 	return &response, nil
 }

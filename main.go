@@ -25,10 +25,11 @@ func main() {
 	if err != nil {
 		logger.Error("Error creating priv key", err)
 	}
+	addr := msg.AccAddress(privKey.PubKey().Address())
 
 	// Create LCDClient
 	LCDClient := client.NewLCDClient(
-		"http://127.0.0.1:1317",
+		"https://lcd.terra.dev:443",
 		"columbus-5",
 		msg.NewDecCoinFromDec("uusd", msg.NewDecFromIntWithPrec(msg.NewInt(20), 2)), // 0.15uusd
 		msg.NewDecFromIntWithPrec(msg.NewInt(15), 1),                                // gas
@@ -36,8 +37,13 @@ func main() {
 		time.Millisecond, // tx timeout super short
 	)
 
+	balance, err := LCDClient.GetBalance(context.Background(), addr)
+	if err != nil {
+		logger.Error("Cannot get balance", err)
+	}
+	logger.Info("Balance is", balance)
+
 	// Create tx
-	addr := msg.AccAddress(privKey.PubKey().Address())
 	toAddr, err := msg.AccAddressFromBech32("terra1t849fxw7e8ney35mxemh4h3ayea4zf77dslwna")
 	if err != nil {
 		logger.Error("Error creating destination address", err)

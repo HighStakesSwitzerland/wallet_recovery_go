@@ -5,6 +5,7 @@ go 1.18
 require (
 	github.com/cosmos/cosmos-sdk v0.44.5
 	github.com/cosmos/go-bip39 v1.0.0
+	github.com/tendermint/tendermint v0.34.14
 	github.com/terra-money/core v0.5.17
 	golang.org/x/net v0.0.0-20211216030914-fe4d6282115f
 )
@@ -92,7 +93,6 @@ require (
 	github.com/tendermint/btcd v0.1.1 // indirect
 	github.com/tendermint/crypto v0.0.0-20191022145703-50d29ede1e15 // indirect
 	github.com/tendermint/go-amino v0.16.0 // indirect
-	github.com/tendermint/tendermint v0.34.14 // indirect
 	github.com/tendermint/tm-db v0.6.6 // indirect
 	github.com/zondax/hid v0.9.0 // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/cosmos/cosmos-sdk/x/bank/types"
 	"io/ioutil"
 
 	"golang.org/x/net/context/ctxhttp"
@@ -32,20 +33,25 @@ type QueryAccountRes struct {
 	Account QueryAccountResData `json:"account"`
 }
 
-func (lcd LCDClient) getBalance(ctx context.Context, address msg.AccAddress) {
+func (lcd LCDClient) GetBalance(ctx context.Context, address msg.AccAddress) (res *types.QueryBalanceResponse, err error) {
 	resp, err := ctxhttp.Get(ctx, lcd.c, lcd.URL+fmt.Sprintf("/cosmos/bank/v1beta1/balances/%s", address))
 	if err != nil {
-		return nil, sdkerrors.Wrap(err, "failed to estimate")
+		return nil, err
 	}
 	defer resp.Body.Close()
 	out, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, sdkerrors.Wrap(err, "failed to read response")
+		return nil, err
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("non-200 response code %d: %s", resp.StatusCode, string(out))
+		return nil, fmt.Errorf("non 200 status code received: %d %s", resp.StatusCode, resp.Status)
 	}
+
+	var response types.QueryBalanceResponse
+	err = lcd.EncodingConfig.Marshaler.UnmarshalJSON(out, &response)
+
+	return &response, nil
 
 }
 

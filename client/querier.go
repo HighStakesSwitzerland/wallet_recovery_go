@@ -3,9 +3,11 @@ package client
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
-	"github.com/cosmos/cosmos-sdk/x/bank/types"
+	"github.com/tendermint/tendermint/libs/log"
 	"io/ioutil"
+	"os"
 
 	"golang.org/x/net/context/ctxhttp"
 
@@ -21,6 +23,10 @@ import (
 	customauthtx "github.com/terra-money/core/custom/auth/tx"
 )
 
+var (
+	logger = log.NewTMLogger(log.NewSyncWriter(os.Stdout)).With("module", "querier")
+)
+
 // QueryAccountResData response
 type QueryAccountResData struct {
 	Address       msg.AccAddress `json:"address"`
@@ -33,9 +39,28 @@ type QueryAccountRes struct {
 	Account QueryAccountResData `json:"account"`
 }
 
-func (lcd LCDClient) GetBalance(ctx context.Context, address msg.AccAddress) (res *types.Balance, err error) {
+type QueryAccountBalance struct {
+	Balance `json:"balance"`
+}
 
-	resp, err := ctxhttp.Get(ctx, lcd.c, lcd.URL+fmt.Sprintf("/cosmos/bank/v1beta1/balances/%s/by_demon?denom=%s", address.String(), "uust"))
+func (q QueryAccountBalance) Reset() {
+}
+
+func (q QueryAccountBalance) String() string {
+	return fmt.Sprintf("%s %s", q.Amount, q.Denom)
+}
+
+func (q QueryAccountBalance) ProtoMessage() {
+}
+
+type Balance struct {
+	Denom  string `json:"denom"`
+	Amount string `json:"amount"`
+}
+
+func (lcd LCDClient) GetBalance(ctx context.Context, address msg.AccAddress) (res *QueryAccountBalance, err error) {
+
+	resp, err := ctxhttp.Get(ctx, lcd.c, lcd.URL+fmt.Sprintf("/cosmos/bank/v1beta1/balances/%s/by_denom?denom=%s", address.String(), "uusd"))
 	if err != nil {
 		return nil, fmt.Errorf("LCD call failed: %s", err.Error())
 	}
@@ -45,12 +70,13 @@ func (lcd LCDClient) GetBalance(ctx context.Context, address msg.AccAddress) (re
 		return nil, fmt.Errorf("LCD read failed: %s", err.Error())
 	}
 
+	logger.Info("Call returned ", out)
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("non 200 status code received: %d %s", resp.StatusCode, resp.Status)
 	}
 
-	var response types.Balance
-	err = lcd.EncodingConfig.Marshaler.UnmarshalJSON(out, &response)
+	var response QueryAccountBalance
+	err = json.Unmarshal(out, &response)
 	return &response, nil
 }
 

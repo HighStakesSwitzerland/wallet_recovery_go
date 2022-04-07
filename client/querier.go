@@ -60,7 +60,7 @@ type Balance struct {
 
 func (lcd LCDClient) GetBalance(ctx context.Context, address msg.AccAddress, denum string) (res *QueryAccountBalance, err error) {
 	// TODO: get balance for all coin at once or not? Maybe not usefull in our scenario, and probably slower
-	resp, err := ctxhttp.Get(ctx, lcd.c, lcd.URL+fmt.Sprintf("/cosmos/bank/v1beta1/balances/%s/by_denom?denom=uusd", address.String(), denum))
+	resp, err := ctxhttp.Get(ctx, lcd.c, lcd.URL+fmt.Sprintf("/cosmos/bank/v1beta1/balances/%s/by_denom?denom=%s", address.String(), denum))
 	if err != nil {
 		return nil, fmt.Errorf("LCD call failed: %s", err.Error())
 	}

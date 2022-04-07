@@ -11,6 +11,7 @@ import (
 	"github.com/tendermint/tendermint/libs/log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -22,6 +23,7 @@ var (
 	fees_uluna  = int64(2000)
 	fees_uusd   = int64(20000)
 	sleep_time  = time.Millisecond * 100
+	query_denom = "uusd"
 )
 
 func main() {
@@ -63,7 +65,7 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 	for true {
 		time.Sleep(sleep_time)
 
-		balance, err := lcdClient.GetBalance(context.Background(), addr)
+		balance, err := lcdClient.GetBalance(context.Background(), addr, query_denom)
 		if err != nil {
 			logger.Error("Cannot get balance", err.Error())
 			continue
@@ -113,7 +115,22 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 			})
 
 		if err != nil {
-			logger.Error("Error creating transaction", err.Error())
+			logger.Error("Error creating transaction again", err.Error())
+			if strings.Contains(err.Error(), "sequence") {
+				// retry with correct sequence number
+				tx, err = lcdClient.CreateAndSignTx(
+					context.Background(),
+					client.CreateTxOptions{
+						Msgs: []msg.Msg{
+							msg.NewMsgSend(addr, toAddr, msg.NewCoins(msg.NewInt64Coin("uusd", amountToMove))), // 1UST
+						},
+						Memo:          "",
+						AccountNumber: account.GetAccountNumber(),
+						Sequence:      account.GetSequence() + 1,
+						SignMode:      tx2.SignModeDirect,
+					})
+
+			}
 			continue
 		}
 

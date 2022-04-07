@@ -7,8 +7,10 @@ import (
 	"github.com/HighStakesSwitzerland/wallet_recovery_go/key"
 	"github.com/HighStakesSwitzerland/wallet_recovery_go/msg"
 	tx2 "github.com/HighStakesSwitzerland/wallet_recovery_go/tx"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/tendermint/tendermint/libs/log"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -17,6 +19,9 @@ var (
 	mnemonic    = "turn reform life recycle tongue zero run alter trim vibrant note bulk cushion vapor awake barrel inflict pottery cup hurry link nephew chicken bubble"
 	dest_wallet = "terra1uymwfafhq8fruvcjq8k67a29nqzrxnv9m4hg6d"
 	lcd_client  = "https://lcd.terra.dev:443"
+	fees_uluna  = int64(2000)
+	fees_uusd   = int64(20000)
+	sleep_time  = time.Millisecond * 100
 )
 
 func main() {
@@ -43,53 +48,82 @@ func main() {
 		time.Second, // tx timeout super short
 	)
 
-	startMonitoring(lcdClient, addr)
-
-}
-
-func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress) {
-	balance, err := lcdClient.GetBalance(context.Background(), addr)
-	if err != nil {
-		logger.Error("Cannot get balance", err.Error())
-		return
-	}
-	logger.Info("Balance is", balance)
-
-	// Create tx
 	toAddr, err := msg.AccAddressFromBech32(dest_wallet)
 	if err != nil {
 		logger.Error("Error creating destination address", err.Error())
 		return
 	}
 
-	account, err := lcdClient.LoadAccount(context.Background(), addr)
-	if err != nil {
-		logger.Error("Error loading address", err.Error())
-		return
+	startMonitoring(lcdClient, addr, toAddr)
+
+}
+
+func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sdk.AccAddress) {
+
+	for true {
+		time.Sleep(sleep_time)
+
+		balance, err := lcdClient.GetBalance(context.Background(), addr)
+		if err != nil {
+			logger.Error("Cannot get balance", err.Error())
+			continue
+		}
+		logger.Info("Balance is", balance)
+
+		if balance.Amount == "0" {
+			continue
+		}
+
+		amount, err := strconv.ParseInt(balance.Amount, 10, 64)
+		if err != nil {
+			logger.Error("Cannot convert balance", err.Error())
+			continue
+		}
+
+		amountToMove := amount
+		if balance.Denom == "uluna" {
+			amountToMove -= fees_uluna
+		}
+		if balance.Denom == "uusd" {
+			amountToMove -= fees_uusd
+		}
+
+		if amountToMove < 0 {
+			continue
+		}
+
+		// TODO: bouger ca hors de la boucle ? mais quid sequence number
+		account, err := lcdClient.LoadAccount(context.Background(), addr)
+		if err != nil {
+			logger.Error("Error loading address", err.Error())
+			continue
+		}
+
+		// Create tx
+		tx, err := lcdClient.CreateAndSignTx(
+			context.Background(),
+			client.CreateTxOptions{
+				Msgs: []msg.Msg{
+					msg.NewMsgSend(addr, toAddr, msg.NewCoins(msg.NewInt64Coin("uusd", amountToMove))), // 1UST
+				},
+				Memo:          "",
+				AccountNumber: account.GetAccountNumber(),
+				Sequence:      account.GetSequence(),
+				SignMode:      tx2.SignModeDirect,
+			})
+
+		if err != nil {
+			logger.Error("Error creating transaction", err.Error())
+			continue
+		}
+
+		// Broadcast
+		res, err := lcdClient.Broadcast(context.Background(), tx)
+		if err != nil {
+			logger.Error("Error broadcasting tx", err)
+			continue
+		}
+		logger.Info("Sucess:", res)
 	}
 
-	tx, err := lcdClient.CreateAndSignTx(
-		context.Background(),
-		client.CreateTxOptions{
-			Msgs: []msg.Msg{
-				msg.NewMsgSend(addr, toAddr, msg.NewCoins(msg.NewInt64Coin("uusd", 1000000))), // 1UST
-			},
-			Memo:          "",
-			AccountNumber: account.GetAccountNumber(),
-			Sequence:      account.GetSequence(),
-			SignMode:      tx2.SignModeDirect,
-		})
-
-	if err != nil {
-		logger.Error("Error creating transaction", err.Error())
-		return
-	}
-
-	// Broadcast
-	res, err := lcdClient.Broadcast(context.Background(), tx)
-	if err != nil {
-		logger.Error("Error broadcasting tx", err)
-		return
-	}
-	logger.Info("Sucess:", res)
 }

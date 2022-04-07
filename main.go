@@ -22,7 +22,7 @@ var (
 	lcd_client  = "https://lcd.terra.dev:443"
 	fees_uluna  = int64(2000)
 	fees_uusd   = int64(20000)
-	sleep_time  = time.Millisecond * 100
+	sleep_time  = time.Millisecond * 20
 	query_denom = "uusd"
 )
 

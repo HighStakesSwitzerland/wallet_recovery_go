@@ -71,7 +71,6 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 			logger.Error("Cannot get balance", err.Error())
 			continue
 		}
-		logger.Info("Balance is", balance)
 
 		if balance.Amount == "0" {
 			continue
@@ -95,6 +94,8 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 			continue
 		}
 
+		logger.Info("Detected valid balance:", balance)
+
 		account, err := lcdClient.LoadAccount(context.Background(), addr)
 		if err != nil {
 			logger.Error("Error loading address", err.Error())
@@ -110,7 +111,7 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 		}
 
 		for err != nil {
-			logger.Error("Error creating transaction")
+			logger.Error("Error creating transaction", err.Error())
 			if strings.Contains(error, "sequence") {
 				i := strings.Index(error, "expected") + 9
 				e := strings.Index(error, ", got")

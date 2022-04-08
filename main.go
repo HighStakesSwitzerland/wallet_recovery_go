@@ -24,6 +24,7 @@ var (
 	fees_uusd   = int64(20000)
 	sleep_time  = time.Millisecond * 20
 	query_denom = "uusd"
+	memo        = "go1"
 )
 
 func main() {
@@ -94,7 +95,6 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 			continue
 		}
 
-		// TODO: bouger ca hors de la boucle ? mais quid sequence number
 		account, err := lcdClient.LoadAccount(context.Background(), addr)
 		if err != nil {
 			logger.Error("Error loading address", err.Error())
@@ -102,35 +102,46 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 		}
 
 		// Create tx
-		tx, err := lcdClient.CreateAndSignTx(
-			context.Background(),
-			client.CreateTxOptions{
-				Msgs: []msg.Msg{
-					msg.NewMsgSend(addr, toAddr, msg.NewCoins(msg.NewInt64Coin("uusd", amountToMove))), // 1UST
-				},
-				Memo:          "",
-				AccountNumber: account.GetAccountNumber(),
-				Sequence:      account.GetSequence(),
-				SignMode:      tx2.SignModeDirect,
-			})
+		tx, err := createTransaction(lcdClient, addr, toAddr, amountToMove, account.GetAccountNumber(), account.GetSequence())
+		var error = ""
 
 		if err != nil {
-			logger.Error("Error creating transaction again", err.Error())
-			if strings.Contains(err.Error(), "sequence") {
-				// retry with correct sequence number
-				tx, err = lcdClient.CreateAndSignTx(
-					context.Background(),
-					client.CreateTxOptions{
-						Msgs: []msg.Msg{
-							msg.NewMsgSend(addr, toAddr, msg.NewCoins(msg.NewInt64Coin("uusd", amountToMove))), // 1UST
-						},
-						Memo:          "",
-						AccountNumber: account.GetAccountNumber(),
-						Sequence:      account.GetSequence() + 1,
-						SignMode:      tx2.SignModeDirect,
-					})
+			error = err.Error()
+		}
 
+		for err != nil {
+			logger.Error("Error creating transaction")
+			if strings.Contains(error, "sequence") {
+				i := strings.Index(error, "expected") + 9
+				e := strings.Index(error, ", got")
+
+				seqNumber, err := strconv.ParseUint(error[i:e], 10, 64)
+				if err != nil {
+					logger.Error(fmt.Sprintf("Could not parse sequence number %s, falbacking to %d", error[i:e], account.GetSequence()+1))
+					seqNumber = account.GetSequence() + 1
+				}
+				logger.Info(fmt.Sprintf("Retrying with sequence %d", seqNumber))
+
+				// retry with correct sequence number
+				tx, err = createTransaction(
+					lcdClient,
+					addr,
+					toAddr,
+					amountToMove,
+					account.GetAccountNumber(),
+					seqNumber,
+				)
+				if err != nil {
+					logger.Error("Error creating transaction", err.Error())
+					error = err.Error()
+				}
+			} else {
+				break
 			}
+		}
+
+		if err != nil {
+			logger.Info("Too many errors, skipping")
 			continue
 		}
 
@@ -140,7 +151,21 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 			logger.Error("Error broadcasting tx", err)
 			continue
 		}
-		logger.Info("Sucess:", res)
+		logger.Info("Success:", res)
 	}
 
+}
+
+func createTransaction(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sdk.AccAddress, amountToMove int64, accountNumber uint64, seqNumber uint64) (*tx2.Builder, error) {
+	return lcdClient.CreateAndSignTx(
+		context.Background(),
+		client.CreateTxOptions{
+			Msgs: []msg.Msg{
+				msg.NewMsgSend(addr, toAddr, msg.NewCoins(msg.NewInt64Coin("uusd", amountToMove))), // 1UST
+			},
+			Memo:          memo,
+			AccountNumber: accountNumber,
+			Sequence:      seqNumber,
+			SignMode:      tx2.SignModeDirect,
+		})
 }

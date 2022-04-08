@@ -70,7 +70,7 @@ func (lcd LCDClient) GetBalance(ctx context.Context, address msg.AccAddress, den
 		return nil, fmt.Errorf("LCD read failed: %s", err.Error())
 	}
 
-	logger.Info(fmt.Sprintf("Call returned [%s]", out))
+	//	logger.Info(fmt.Sprintf("Call returned [%s]", out))
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("non 200 status code received: %d %s", resp.StatusCode, resp.Status)
 	}

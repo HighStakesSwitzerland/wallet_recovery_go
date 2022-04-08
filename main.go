@@ -110,17 +110,23 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 			error = err.Error()
 		}
 
+		var errCount = 0
 		for err != nil {
 			logger.Error("Error creating transaction", err.Error())
 			if strings.Contains(error, "sequence") {
 				i := strings.Index(error, "expected") + 9
 				e := strings.Index(error, ", got")
-
 				seqNumber, err := strconv.ParseUint(error[i:e], 10, 64)
 				if err != nil {
 					logger.Error(fmt.Sprintf("Could not parse sequence number %s, falbacking to %d", error[i:e], account.GetSequence()+1))
 					seqNumber = account.GetSequence() + 1
 				}
+
+				if errCount > 5 {
+					logger.Info("Sequence seems stuck, increasing")
+					seqNumber++
+				}
+
 				logger.Info(fmt.Sprintf("Retrying with sequence %d", seqNumber))
 
 				// retry with correct sequence number
@@ -135,6 +141,7 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 				if err != nil {
 					logger.Error("Error creating transaction", err.Error())
 					error = err.Error()
+					errCount++
 				}
 			} else {
 				break
@@ -158,6 +165,7 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 }
 
 func createTransaction(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sdk.AccAddress, amountToMove int64, accountNumber uint64, seqNumber uint64) (*tx2.Builder, error) {
+	logger.Info(fmt.Sprintf("Creating TX with seq# %d", seqNumber))
 	return lcdClient.CreateAndSignTx(
 		context.Background(),
 		client.CreateTxOptions{

@@ -157,6 +157,14 @@ func (lcd LCDClient) Simulate(ctx context.Context, txbuilder tx.Builder, options
 	return &response, nil
 }
 
+func (lcd LCDClient) FlushMempool(ctx context.Context) {
+	resp, err := ctxhttp.Get(ctx, lcd.c, lcd.RPC+"/unsafe_flush_mempool")
+	defer resp.Body.Close()
+	if err != nil {
+		logger.Error("Failed to flush mempool")
+	}
+}
+
 // protoTxProvider is a type which can provide a proto transaction. It is a
 // workaround to get access to the wrapper TxBuilder's method GetProtoTx().
 // Deprecated: It's only used for testing the deprecated Simulate gRPC endpoint

@@ -20,6 +20,7 @@ var (
 	mnemonic    = "turn reform life recycle tongue zero run alter trim vibrant note bulk cushion vapor awake barrel inflict pottery cup hurry link nephew chicken bubble"
 	dest_wallet = "terra1uymwfafhq8fruvcjq8k67a29nqzrxnv9m4hg6d"
 	lcd_client  = "https://lcd.terra.dev:443"
+	rpc_client  = "http://127.0.0.1:26657"
 	fees_uluna  = int64(2000)
 	fees_uusd   = int64(20000)
 	sleep_time  = time.Millisecond * 20
@@ -44,6 +45,7 @@ func main() {
 	// Create LCDClient
 	lcdClient := client.NewLCDClient(
 		lcd_client,
+		rpc_client,
 		"columbus-5",
 		msg.NewDecCoinFromDec("uusd", msg.NewDecFromIntWithPrec(msg.NewInt(20), 2)), // 0.15uusd
 		msg.NewDecFromIntWithPrec(msg.NewInt(15), 1),                                // gas
@@ -122,7 +124,11 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 					seqNumber = account.GetSequence() + 1
 				}
 
-				if errCount > 5 {
+				if errCount > 3 {
+					break // stop trying
+				}
+
+				if errCount > 1 {
 					logger.Info("Sequence seems stuck, increasing")
 					seqNumber++
 				}
@@ -149,7 +155,8 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 		}
 
 		if err != nil {
-			logger.Info("Too many errors, skipping")
+			logger.Info("Too many errors, cleaning mempool")
+			lcdClient.FlushMempool(context.Background())
 			continue
 		}
 
@@ -170,7 +177,7 @@ func createTransaction(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr 
 		context.Background(),
 		client.CreateTxOptions{
 			Msgs: []msg.Msg{
-				msg.NewMsgSend(addr, toAddr, msg.NewCoins(msg.NewInt64Coin("uusd", amountToMove))), // 1UST
+				msg.NewMsgSend(addr, toAddr, msg.NewCoins(msg.NewInt64Coin("uusd", amountToMove))),
 			},
 			Memo:          memo,
 			AccountNumber: accountNumber,

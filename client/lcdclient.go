@@ -18,6 +18,7 @@ import (
 // LCDClient outer interface for building & signing & broadcasting tx
 type LCDClient struct {
 	URL           string
+	RPC           string
 	ChainID       string
 	GasPrice      msg.DecCoin
 	GasAdjustment msg.Dec
@@ -29,9 +30,10 @@ type LCDClient struct {
 }
 
 // NewLCDClient create new LCDClient
-func NewLCDClient(URL, chainID string, gasPrice msg.DecCoin, gasAdjustment msg.Dec, tmKey key.PrivKey, httpTimeout time.Duration) *LCDClient {
+func NewLCDClient(URL, RPC, chainID string, gasPrice msg.DecCoin, gasAdjustment msg.Dec, tmKey key.PrivKey, httpTimeout time.Duration) *LCDClient {
 	return &LCDClient{
 		URL:            URL,
+		RPC:            RPC,
 		ChainID:        chainID,
 		GasPrice:       gasPrice,
 		GasAdjustment:  gasAdjustment,

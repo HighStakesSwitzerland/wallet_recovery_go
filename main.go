@@ -19,13 +19,13 @@ var (
 	logger       = log.NewTMLogger(log.NewSyncWriter(os.Stdout)).With("module", "main")
 	mnemonic     = "turn reform life recycle tongue zero run alter trim vibrant note bulk cushion vapor awake barrel inflict pottery cup hurry link nephew chicken bubble"
 	dest_wallet  = "terra1yym9g75nvkzyyxwcajljh8r788h8u90t8urp89"
-	lcd_client   = "https://lcd.terra.dev:443"
+	lcd_client   = "http://127.0.0.1:1317"
 	rpc_client   = "http://127.0.0.1:26657"
 	fees_uluna   = int64(2000)
 	fees_uusd    = int64(20000)
 	sleep_time   = time.Millisecond * 20
 	query_denom  = "uusd"
-	memo         = "go_gcp"
+	memo         = "go_aws"
 	amountToMove = int64(4980000)
 )
 
@@ -126,18 +126,14 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 		}
 
 		if err != nil {
-			logger.Info("Too many errors, cleaning mempool")
-			lcdClient.FlushMempool(context.Background())
-			continue
+			// Broadcast
+			res, err := lcdClient.Broadcast(context.Background(), tx)
+			if err != nil {
+				logger.Error("Error broadcasting tx", err)
+				continue
+			}
+			logger.Info("Success:", res)
 		}
-
-		// Broadcast
-		res, err := lcdClient.Broadcast(context.Background(), tx)
-		if err != nil {
-			logger.Error("Error broadcasting tx", err)
-			continue
-		}
-		logger.Info("Success:", res)
 	}
 
 }

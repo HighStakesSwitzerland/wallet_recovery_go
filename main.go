@@ -26,7 +26,7 @@ var (
 	sleep_time   = time.Millisecond * 20
 	query_denom  = "uusd"
 	memo         = "go1"
-	amountToMove = int64(4)
+	amountToMove = int64(4980000)
 )
 
 func main() {

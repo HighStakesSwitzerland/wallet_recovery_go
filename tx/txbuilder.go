@@ -1,23 +1,16 @@
 package tx
 
 import (
-	"fmt"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 	authsigning "github.com/cosmos/cosmos-sdk/x/auth/signing"
-	"github.com/tendermint/tendermint/libs/log"
-	"os"
 
 	core "github.com/terra-money/core/types"
 
 	"github.com/HighStakesSwitzerland/wallet_recovery_go/key"
-)
-
-var (
-	logger = log.NewTMLogger(log.NewSyncWriter(os.Stdout)).With("module", "txbuilder")
 )
 
 func init() {
@@ -57,7 +50,6 @@ func (txBuilder Builder) Sign(
 		SignMode:  signMode,
 		Signature: nil,
 	}
-	logger.Info(fmt.Sprintf("Generating signature with sequence %d", signerData.Sequence))
 	sig := signing.SignatureV2{
 		PubKey:   privKey.PubKey(),
 		Data:     &sigData,

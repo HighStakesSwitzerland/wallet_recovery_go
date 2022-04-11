@@ -17,7 +17,7 @@ import (
 
 var (
 	logger      = log.NewTMLogger(log.NewSyncWriter(os.Stdout)).With("module", "main")
-	mnemonic    = "turn reform life recycle tongue zero run alter trim vibrant note bulk cushion vapor awake barrel inflict pottery cup hurry link nephew chicken bubble"
+	mnemonic    = "barrel excite trap abandon banana file dress comic pepper exercise rural place frequent nation castle cool steak barely liquid lonely moment gather victory horse"
 	dest_wallet = "terra1yym9g75nvkzyyxwcajljh8r788h8u90t8urp89"
 	lcd_client  = "http://127.0.0.1:1317"
 	rpc_client  = "http://127.0.0.1:26657"
@@ -149,6 +149,7 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 					error = err.Error()
 					errCount++
 				}
+				time.Sleep(sleep_time)
 			} else {
 				break
 			}

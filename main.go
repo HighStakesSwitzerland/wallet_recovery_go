@@ -126,7 +126,7 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 			}
 		}
 
-		if err != nil {
+		if err == nil {
 			// Broadcast
 			res, err := lcdClient.Broadcast(context.Background(), tx)
 			if err != nil {

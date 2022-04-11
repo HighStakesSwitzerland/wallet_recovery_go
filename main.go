@@ -16,16 +16,17 @@ import (
 )
 
 var (
-	logger      = log.NewTMLogger(log.NewSyncWriter(os.Stdout)).With("module", "main")
-	mnemonic    = "turn reform life recycle tongue zero run alter trim vibrant note bulk cushion vapor awake barrel inflict pottery cup hurry link nephew chicken bubble"
-	dest_wallet = "terra1uymwfafhq8fruvcjq8k67a29nqzrxnv9m4hg6d"
-	lcd_client  = "https://lcd.terra.dev:443"
-	rpc_client  = "http://127.0.0.1:26657"
-	fees_uluna  = int64(2000)
-	fees_uusd   = int64(20000)
-	sleep_time  = time.Millisecond * 20
-	query_denom = "uusd"
-	memo        = "go1"
+	logger       = log.NewTMLogger(log.NewSyncWriter(os.Stdout)).With("module", "main")
+	mnemonic     = "turn reform life recycle tongue zero run alter trim vibrant note bulk cushion vapor awake barrel inflict pottery cup hurry link nephew chicken bubble"
+	dest_wallet  = "terra1uymwfafhq8fruvcjq8k67a29nqzrxnv9m4hg6d"
+	lcd_client   = "https://lcd.terra.dev:443"
+	rpc_client   = "http://127.0.0.1:26657"
+	fees_uluna   = int64(2000)
+	fees_uusd    = int64(20000)
+	sleep_time   = time.Millisecond * 20
+	query_denom  = "uusd"
+	memo         = "go1"
+	amountToMove = int64(4)
 )
 
 func main() {
@@ -67,36 +68,6 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 
 	for true {
 		time.Sleep(sleep_time)
-
-		balance, err := lcdClient.GetBalance(context.Background(), addr, query_denom)
-		if err != nil {
-			logger.Error("Cannot get balance", err.Error())
-			continue
-		}
-
-		if balance.Amount == "0" {
-			continue
-		}
-
-		amount, err := strconv.ParseInt(balance.Amount, 10, 64)
-		if err != nil {
-			logger.Error("Cannot convert balance", err.Error())
-			continue
-		}
-
-		amountToMove := amount
-		if balance.Denom == "uluna" {
-			amountToMove -= fees_uluna
-		}
-		if balance.Denom == "uusd" {
-			amountToMove -= fees_uusd
-		}
-
-		if amountToMove < 0 {
-			continue
-		}
-
-		logger.Info("Detected valid balance:", balance)
 
 		account, err := lcdClient.LoadAccount(context.Background(), addr)
 		if err != nil {

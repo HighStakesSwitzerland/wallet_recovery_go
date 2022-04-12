@@ -110,7 +110,7 @@ func (lcd LCDClient) LoadAccount(ctx context.Context, address msg.AccAddress) (r
 func (lcd LCDClient) Simulate(ctx context.Context, txbuilder tx.Builder, options CreateTxOptions) (*sdktx.SimulateResponse, error) {
 	// Create an empty signature literal as the ante handler will populate with a
 	// sentinel pubkey.
-	logger.Info(fmt.Sprintf("Simulating tx with seq# %d", options.Sequence))
+	//	logger.Info(fmt.Sprintf("Simulating tx with seq# %d", options.Sequence))
 	sig := signing.SignatureV2{
 		PubKey: &secp256k1.PubKey{},
 		Data: &signing.SingleSignatureData{
@@ -134,7 +134,7 @@ func (lcd LCDClient) Simulate(ctx context.Context, txbuilder tx.Builder, options
 		return nil, err
 	}
 
-	logger.Info(fmt.Sprintf("Simulating tx with seq# %s", reqBytes))
+	//	logger.Info(fmt.Sprintf("Simulating tx with seq# %s", reqBytes))
 	resp, err := ctxhttp.Post(ctx, lcd.c, lcd.URL+"/cosmos/tx/v1beta1/simulate", "application/json", bytes.NewBuffer(reqBytes))
 	if err != nil {
 		return nil, sdkerrors.Wrap(err, "failed to estimate")

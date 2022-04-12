@@ -21,12 +21,11 @@ var (
 	dest_wallet  = "terra1yym9g75nvkzyyxwcajljh8r788h8u90t8urp89"
 	lcd_client   = "http://127.0.0.1:1317"
 	rpc_client   = "http://127.0.0.1:26657"
-	fees_uluna   = int64(2000)
-	fees_uusd    = int64(20000)
-	sleep_time   = time.Millisecond * 20
-	query_denom  = "uusd"
+	fees         = msg.NewDecFromIntWithPrec(msg.NewInt(20), 2)
+	sleep_time   = time.Millisecond * 1
+	query_denom  = "uluna"
 	memo         = "go_aws"
-	amountToMove = int64(4980000)
+	amountToMove = int64(990000)
 )
 
 func main() {
@@ -48,8 +47,8 @@ func main() {
 		lcd_client,
 		rpc_client,
 		"columbus-5",
-		msg.NewDecCoinFromDec("uusd", msg.NewDecFromIntWithPrec(msg.NewInt(20), 2)), // 0.15uusd
-		msg.NewDecFromIntWithPrec(msg.NewInt(15), 1),                                // gas
+		msg.NewDecCoinFromDec(query_denom, fees),
+		msg.NewDecFromIntWithPrec(msg.NewInt(15), 1),
 		privKey,
 		time.Second, // tx timeout super short
 	)
@@ -85,7 +84,7 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 
 		var errCount = 0
 		for err != nil {
-			logger.Error("Error creating transaction", err.Error())
+			//logger.Error("Error creating transaction", err.Error())
 			if strings.Contains(error, "sequence") {
 				i := strings.Index(error, "expected") + 9
 				e := strings.Index(error, ", got")
@@ -104,7 +103,7 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 					seqNumber++
 				}
 
-				logger.Info(fmt.Sprintf("Retrying with sequence %d", seqNumber))
+				//				logger.Info(fmt.Sprintf("Retrying with sequence %d", seqNumber))
 
 				// retry with correct sequence number
 				tx, err = createTransaction(
@@ -116,7 +115,7 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 					seqNumber,
 				)
 				if err != nil {
-					logger.Error("Error creating transaction", err.Error())
+					//					logger.Error("Error creating transaction", err.Error())
 					error = err.Error()
 					errCount++
 				}
@@ -140,12 +139,12 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 }
 
 func createTransaction(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sdk.AccAddress, amountToMove int64, accountNumber uint64, seqNumber uint64) (*tx2.Builder, error) {
-	logger.Info(fmt.Sprintf("Creating TX with seq# %d", seqNumber))
+	//	logger.Info(fmt.Sprintf("Creating TX with seq# %d", seqNumber))
 	return lcdClient.CreateAndSignTx(
 		context.Background(),
 		client.CreateTxOptions{
 			Msgs: []msg.Msg{
-				msg.NewMsgSend(addr, toAddr, msg.NewCoins(msg.NewInt64Coin("uusd", amountToMove))),
+				msg.NewMsgSend(addr, toAddr, msg.NewCoins(msg.NewInt64Coin(query_denom, amountToMove))),
 			},
 			Memo:          memo,
 			AccountNumber: accountNumber,

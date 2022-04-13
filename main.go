@@ -19,13 +19,14 @@ var (
 	logger       = log.NewTMLogger(log.NewSyncWriter(os.Stdout)).With("module", "main")
 	mnemonic     = "barrel excite trap abandon banana file dress comic pepper exercise rural place frequent nation castle cool steak barely liquid lonely moment gather victory horse"
 	dest_wallet  = "terra1yym9g75nvkzyyxwcajljh8r788h8u90t8urp89"
-	lcd_client   = "http://127.0.0.1:1317"
+	lcd_client   = "https://lcd.terra.dev:443"
 	rpc_client   = "http://127.0.0.1:26657"
-	fees         = msg.NewDecFromIntWithPrec(msg.NewInt(20), 2)
-	sleep_time   = time.Millisecond * 1
-	query_denom  = "uluna"
+	fees_uluna   = msg.NewDecFromIntWithPrec(msg.NewInt(2), 15) // 2000 (yes, 2000)
+	fees_uusd    = msg.NewDecFromIntWithPrec(msg.NewInt(2), 16) // 20000
+	sleep_time   = time.Millisecond * 2000
+	query_denom  = "uluna" // uluna or uusd
 	memo         = "go_aws"
-	amountToMove = int64(990000)
+	amountToMove = int64(1000000) // must be in same unit than query_denom
 )
 
 func main() {
@@ -47,7 +48,7 @@ func main() {
 		lcd_client,
 		rpc_client,
 		"columbus-5",
-		msg.NewDecCoinFromDec(query_denom, fees),
+		msg.NewDecCoinFromDec(query_denom, fees_uluna),
 		msg.NewDecFromIntWithPrec(msg.NewInt(15), 1),
 		privKey,
 		time.Second, // tx timeout super short
@@ -74,10 +75,14 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 			continue
 		}
 
-		// Create tx
-		tx, err := createTransaction(lcdClient, addr, toAddr, amountToMove, account.GetAccountNumber(), account.GetSequence())
-		var error = ""
+		fees := fees_uluna.BigInt().Int64()
+		if query_denom == "uusd" {
+			fees = fees_uusd.BigInt().Int64()
+		}
+		// Create tx and simulate
+		tx, err := createTransaction(lcdClient, addr, toAddr, amountToMove-fees, account.GetAccountNumber(), account.GetSequence())
 
+		var error = ""
 		if err != nil {
 			error = err.Error()
 		}
@@ -110,7 +115,7 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 					lcdClient,
 					addr,
 					toAddr,
-					amountToMove,
+					amountToMove-fees_uluna.RoundInt64(),
 					account.GetAccountNumber(),
 					seqNumber,
 				)
@@ -127,6 +132,7 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 
 		if err == nil {
 			// Broadcast
+			logger.Info(fmt.Sprintf("fees:%d%s and gas:%d", tx.GetTx().GetFee().AmountOf(query_denom).Int64(), query_denom, tx.GetTx().GetGas()))
 			res, err := lcdClient.Broadcast(context.Background(), tx)
 			if err != nil {
 				logger.Error("Error broadcasting tx", err)

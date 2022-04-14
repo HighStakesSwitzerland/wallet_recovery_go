@@ -2,7 +2,10 @@ package client
 
 import (
 	"context"
+	"fmt"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/HighStakesSwitzerland/wallet_recovery_go/key"
@@ -57,6 +60,11 @@ type CreateTxOptions struct {
 	SignMode      tx.SignMode
 	FeeGranter    msg.AccAddress
 	TimeoutHeight uint64
+	Balance       *QueryAccountBalance
+	ToAddr        sdk.AccAddress
+	Amount        int64
+	Addr          msg.AccAddress
+	Denom         string
 }
 
 // CreateAndSignTx build and sign tx
@@ -66,8 +74,8 @@ func (lcd *LCDClient) CreateAndSignTx(ctx context.Context, options CreateTxOptio
 	txbuilder.SetFeeGranter(options.FeeGranter)
 	txbuilder.SetGasLimit(options.GasLimit)
 	txbuilder.SetMemo(options.Memo)
-	txbuilder.SetMsgs(options.Msgs...)
 	txbuilder.SetTimeoutHeight(options.TimeoutHeight)
+	txbuilder.SetMsgs(msg.NewMsgSend(options.Addr, options.ToAddr, msg.NewCoins(msg.NewInt64Coin(options.Denom, options.Amount))))
 
 	// use direct sign mode as default
 	if tx.SignModeUnspecified == options.SignMode {
@@ -103,6 +111,19 @@ func (lcd *LCDClient) CreateAndSignTx(ctx context.Context, options CreateTxOptio
 
 		gasFee := msg.NewCoin(lcd.GasPrice.Denom, lcd.GasPrice.Amount.MulInt64(gasLimit).TruncateInt())
 		txbuilder.SetFeeAmount(computeTaxRes.TaxAmount.Add(gasFee))
+	}
+
+	// adjust amount if fees + current amount > balance
+	fees := txbuilder.TxBuilder.GetTx().GetFee().AmountOf(options.Denom).Int64()
+	total := fees + options.Amount
+	balanceAmount, _ := strconv.ParseInt(options.Balance.Amount, 10, 64)
+	maxAmount := balanceAmount - fees
+	if total > balanceAmount {
+		logger.Info(fmt.Sprintf("Amount to send is more than balance, changing to %d", maxAmount))
+		if maxAmount < 0 {
+			return nil, fmt.Errorf("negative balance")
+		}
+		txbuilder.SetMsgs(msg.NewMsgSend(options.Addr, options.ToAddr, msg.NewCoins(msg.NewInt64Coin(options.Denom, maxAmount))))
 	}
 
 	err := txbuilder.Sign(options.SignMode, tx.SignerData{

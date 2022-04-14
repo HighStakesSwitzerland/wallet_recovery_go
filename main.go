@@ -23,9 +23,9 @@ var (
 	rpc_client  = "http://127.0.0.1:26657"
 	fees_uluna  = int64(2000)
 	fees_uusd   = int64(20000)
-	sleep_time  = time.Millisecond * 20
-	query_denom = "uusd"
-	memo        = "go_gcp"
+	sleep_time  = time.Millisecond * 2000
+	query_denom = "uluna"
+	memo        = ""
 )
 
 func main() {
@@ -47,8 +47,8 @@ func main() {
 		lcd_client,
 		rpc_client,
 		"columbus-5",
-		msg.NewDecCoinFromDec("uusd", msg.NewDecFromIntWithPrec(msg.NewInt(20), 2)), // 0.15uusd
-		msg.NewDecFromIntWithPrec(msg.NewInt(15), 1),                                // gas
+		msg.NewDecCoinFromDec(query_denom, msg.NewDecFromIntWithPrec(msg.NewInt(20), 2)), // 0.15uusd
+		msg.NewDecFromIntWithPrec(msg.NewInt(15), 1),                                     // gas
 		privKey,
 		time.Second, // tx timeout super short
 	)
@@ -64,7 +64,7 @@ func main() {
 }
 
 func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sdk.AccAddress) {
-
+	logger.Info("Started")
 	for true {
 		time.Sleep(sleep_time)
 
@@ -96,7 +96,7 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 			continue
 		}
 
-		logger.Info("Detected valid balance:", balance)
+		logger.Info(fmt.Sprintf("Detected valid balance: %s moving %d", balance, amountToMove))
 
 		account, err := lcdClient.LoadAccount(context.Background(), addr)
 		if err != nil {
@@ -105,53 +105,28 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 		}
 
 		// Create tx
-		tx, err := createTransaction(lcdClient, addr, toAddr, amountToMove, account.GetAccountNumber(), account.GetSequence())
-		var error = ""
+		var tx *tx2.Builder
+		tx, err = createTransaction(lcdClient, addr, toAddr, amountToMove, account.GetAccountNumber(), account.GetSequence(), balance)
 
 		if err != nil {
-			error = err.Error()
-		}
-
-		var errCount = 0
-		for err != nil {
+			var errorMsg = err.Error()
 			logger.Error("Error creating transaction", err.Error())
-			if strings.Contains(error, "sequence") {
-				i := strings.Index(error, "expected") + 9
-				e := strings.Index(error, ", got")
-				seqNumber, err := strconv.ParseUint(error[i:e], 10, 64)
+			if strings.Contains(errorMsg, "sequence") {
+				i := strings.Index(errorMsg, "expected") + 9
+				e := strings.Index(errorMsg, ", got")
+				seqNumber, err := strconv.ParseUint(errorMsg[i:e], 10, 64)
 				if err != nil {
-					logger.Error(fmt.Sprintf("Could not parse sequence number %s, falbacking to %d", error[i:e], account.GetSequence()+1))
+					logger.Error(fmt.Sprintf("Could not parse sequence number %s, falbacking to %d", errorMsg[i:e], account.GetSequence()+1))
 					seqNumber = account.GetSequence() + 1
 				}
 
-				if errCount > 3 {
-					break // stop trying
-				}
-
-				if errCount > 1 {
-					logger.Info("Sequence seems stuck, increasing")
-					seqNumber++
-				}
-
 				logger.Info(fmt.Sprintf("Retrying with sequence %d", seqNumber))
-
 				// retry with correct sequence number
-				tx, err = createTransaction(
-					lcdClient,
-					addr,
-					toAddr,
-					amountToMove,
-					account.GetAccountNumber(),
-					seqNumber,
-				)
+				tx, err = createTransaction(lcdClient, addr, toAddr, amountToMove, account.GetAccountNumber(), seqNumber, balance)
+
 				if err != nil {
 					logger.Error("Error creating transaction", err.Error())
-					error = err.Error()
-					errCount++
 				}
-				time.Sleep(sleep_time)
-			} else {
-				break
 			}
 		}
 
@@ -168,17 +143,21 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 
 }
 
-func createTransaction(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sdk.AccAddress, amountToMove int64, accountNumber uint64, seqNumber uint64) (*tx2.Builder, error) {
+func createTransaction(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sdk.AccAddress, amountToMove int64,
+	accountNumber uint64, seqNumber uint64, balance *client.QueryAccountBalance) (*tx2.Builder, error) {
+
 	logger.Info(fmt.Sprintf("Creating TX with seq# %d", seqNumber))
 	return lcdClient.CreateAndSignTx(
 		context.Background(),
 		client.CreateTxOptions{
-			Msgs: []msg.Msg{
-				msg.NewMsgSend(addr, toAddr, msg.NewCoins(msg.NewInt64Coin("uusd", amountToMove))),
-			},
+			Denom:         query_denom,
+			Addr:          addr,
+			ToAddr:        toAddr,
+			Amount:        amountToMove,
 			Memo:          memo,
 			AccountNumber: accountNumber,
 			Sequence:      seqNumber,
 			SignMode:      tx2.SignModeDirect,
+			Balance:       balance,
 		})
 }

@@ -92,9 +92,10 @@ func (lcd *LCDClient) CreateAndSignTx(ctx context.Context, options CreateTxOptio
 		}
 
 		gasLimit = lcd.GasAdjustment.MulInt64(int64(simulateRes.GasInfo.GasUsed)).TruncateInt64()
-		txbuilder.SetGasLimit(uint64(gasLimit))
 	}
+	txbuilder.SetGasLimit(uint64(gasLimit))
 
+	feeAmount := options.FeeAmount
 	if options.FeeAmount.IsZero() {
 		computeTaxRes, err := lcd.ComputeTax(ctx, txbuilder)
 		if err != nil {
@@ -102,8 +103,9 @@ func (lcd *LCDClient) CreateAndSignTx(ctx context.Context, options CreateTxOptio
 		}
 
 		gasFee := msg.NewCoin(lcd.GasPrice.Denom, lcd.GasPrice.Amount.MulInt64(gasLimit).TruncateInt())
-		txbuilder.SetFeeAmount(computeTaxRes.TaxAmount.Add(gasFee))
+		feeAmount = computeTaxRes.TaxAmount.Add(gasFee)
 	}
+	txbuilder.SetFeeAmount(feeAmount)
 
 	err := txbuilder.Sign(options.SignMode, tx.SignerData{
 		AccountNumber: options.AccountNumber,

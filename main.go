@@ -23,7 +23,7 @@ var (
 	rpc_client  = "http://127.0.0.1:26657"
 	fees_uluna  = int64(2000)
 	fees_uusd   = int64(20000)
-	sleep_time  = time.Millisecond * 2000
+	sleep_time  = time.Millisecond * 1
 	query_denom = "uluna"
 	memo        = ""
 )

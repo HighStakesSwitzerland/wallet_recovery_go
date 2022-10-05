@@ -17,15 +17,13 @@ import (
 
 var (
 	logger      = log.NewTMLogger(log.NewSyncWriter(os.Stdout)).With("module", "main")
-	mnemonic    = "barrel excite trap abandon banana file dress comic pepper exercise rural place frequent nation castle cool steak barely liquid lonely moment gather victory horse"
-	dest_wallet = "terra1yym9g75nvkzyyxwcajljh8r788h8u90t8urp89"
-	lcd_client  = "http://127.0.0.1:1317"
-	rpc_client  = "http://127.0.0.1:26657"
-	fees_uluna  = int64(2000)
-	fees_uusd   = int64(20000)
-	sleep_time  = time.Millisecond * 1
+	mnemonic    = "turn reform life recycle tongue zero run alter trim vibrant note bulk cushion vapor awake barrel inflict pottery cup hurry link nephew chicken bubble"
+	dest_wallet = "terra1p0v3n0t08r4mv6lup5lgthgjuvd58gvlehvxfs"
+	lcd_client  = "http://0.0.0.0:1317"
+	rpc_client  = "http://0.0.0.0:36657"
+	sleep_time  = time.Millisecond * 10
 	query_denom = "uluna"
-	memo        = ""
+	memo        = "yay \\o/"
 )
 
 func main() {
@@ -42,30 +40,31 @@ func main() {
 	addr := msg.AccAddress(privKey.PubKey().Address())
 	logger.Info(fmt.Sprintf("address: [%s]", addr.String()))
 
-	// Create LCDClient
-	lcdClient := client.NewLCDClient(
-		lcd_client,
-		rpc_client,
-		"columbus-5",
-		msg.NewDecCoinFromDec(query_denom, msg.NewDecFromIntWithPrec(msg.NewInt(20), 2)), // 0.15uusd
-		msg.NewDecFromIntWithPrec(msg.NewInt(15), 1),                                     // gas
-		privKey,
-		time.Second, // tx timeout super short
-	)
-
-	toAddr, err := msg.AccAddressFromBech32(dest_wallet)
-	if err != nil {
-		logger.Error("Error creating destination address", err.Error())
-		return
-	}
-
-	startMonitoring(lcdClient, addr, toAddr)
+	startMonitoring(addr, privKey)
 
 }
 
-func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sdk.AccAddress) {
+func startMonitoring(addr msg.AccAddress, privKey key.PrivKey) {
 	logger.Info("Started")
 	for true {
+
+		// Create LCDClient
+		lcdClient := client.NewLCDClient(
+			lcd_client,
+			rpc_client,
+			"columbus-5",
+			msg.NewDecCoinFromDec(query_denom, msg.NewDecFromIntWithPrec(msg.NewInt(200), 2)), // 0.15uusd
+			msg.NewDecFromIntWithPrec(msg.NewInt(30), 1),                                      // gas
+			privKey,
+			time.Second*2, // tx timeout super short
+		)
+
+		toAddr, err := msg.AccAddressFromBech32(dest_wallet)
+		if err != nil {
+			logger.Error("Error creating destination address", err.Error())
+			return
+		}
+
 		time.Sleep(sleep_time)
 
 		balance, err := lcdClient.GetBalance(context.Background(), addr, query_denom)
@@ -75,6 +74,7 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 		}
 
 		if balance.Amount == "0" {
+			logger.Error("balance = 0")
 			continue
 		}
 
@@ -84,19 +84,7 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 			continue
 		}
 
-		amountToMove := amount
-		if balance.Denom == "uluna" {
-			amountToMove -= fees_uluna
-		}
-		if balance.Denom == "uusd" {
-			amountToMove -= fees_uusd
-		}
-
-		if amountToMove < 0 {
-			continue
-		}
-
-		logger.Info(fmt.Sprintf("Detected valid balance: %s moving %d", balance, amountToMove))
+		logger.Info(fmt.Sprintf("Detected valid balance: %s moving %d", balance, amount))
 
 		account, err := lcdClient.LoadAccount(context.Background(), addr)
 		if err != nil {
@@ -106,11 +94,11 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 
 		// Create tx
 		var tx *tx2.Builder
-		tx, err = createTransaction(lcdClient, addr, toAddr, amountToMove, account.GetAccountNumber(), account.GetSequence(), balance)
+		tx, err = createTransaction(lcdClient, addr, toAddr, amount, account.GetAccountNumber(), account.GetSequence(), balance)
 
 		if err != nil {
 			var errorMsg = err.Error()
-			logger.Error("Error creating transaction", err.Error())
+			logger.Error("Error creating transaction", errorMsg)
 			if strings.Contains(errorMsg, "sequence") {
 				i := strings.Index(errorMsg, "expected") + 9
 				e := strings.Index(errorMsg, ", got")
@@ -121,11 +109,13 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 				}
 
 				logger.Info(fmt.Sprintf("Retrying with sequence %d", seqNumber))
-				// retry with correct sequence number
-				tx, err = createTransaction(lcdClient, addr, toAddr, amountToMove, account.GetAccountNumber(), seqNumber, balance)
+				// amount - 1luna in case a failed tx consumed some fees
+				tx, err = createTransaction(lcdClient, addr, toAddr, amount-1000000, account.GetAccountNumber(), seqNumber, balance)
 
 				if err != nil {
-					logger.Error("Error creating transaction", err.Error())
+					logger.Error("Error retrying transaction", err.Error())
+				} else {
+					logger.Info("Retry Success:", tx)
 				}
 			}
 		}
@@ -135,9 +125,10 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 			res, err := lcdClient.Broadcast(context.Background(), tx)
 			if err != nil {
 				logger.Error("Error broadcasting tx", err)
-				continue
+				// panic(err) uncomment for stacktrace on exception
 			}
 			logger.Info("Success:", res)
+			time.Sleep(2500) // wait a bit
 		}
 	}
 
@@ -146,7 +137,7 @@ func startMonitoring(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sd
 func createTransaction(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr sdk.AccAddress, amountToMove int64,
 	accountNumber uint64, seqNumber uint64, balance *client.QueryAccountBalance) (*tx2.Builder, error) {
 
-	logger.Info(fmt.Sprintf("Creating TX with seq# %d", seqNumber))
+	logger.Info(fmt.Sprintf("Creating TX with seq# %d and amount %d", seqNumber, amountToMove))
 	return lcdClient.CreateAndSignTx(
 		context.Background(),
 		client.CreateTxOptions{

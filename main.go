@@ -65,8 +65,8 @@ func main() {
 		lcd_client,
 		rpc_client,
 		"columbus-5",
-		msg.NewDecCoinFromDec(query_denom, msg.NewDecFromIntWithPrec(msg.NewInt(200), 2)), // 0.15uusd
-		msg.NewDecFromIntWithPrec(msg.NewInt(30), 1),                                      // gas
+		msg.NewDecCoinFromDec(query_denom, msg.NewDecFromIntWithPrec(msg.NewInt(2000), 2)), // 0.15uusd
+		msg.NewDecFromIntWithPrec(msg.NewInt(30), 1),                                       // gas
 		privKey,
 		time.Second*1, // tx timeout super short
 	)

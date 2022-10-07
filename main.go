@@ -9,6 +9,7 @@ import (
 	tx2 "github.com/HighStakesSwitzerland/wallet_recovery_go/tx"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/tendermint/tendermint/libs/log"
+	"github.com/tendermint/tendermint/rpc/client/http"
 	"os"
 	"strconv"
 	"strings"
@@ -21,12 +22,13 @@ var (
 	dest_wallet = "terra1p0v3n0t08r4mv6lup5lgthgjuvd58gvlehvxfs"
 	lcd_client  = "http://0.0.0.0:1317"
 	rpc_client  = "http://0.0.0.0:36657"
-	sleep_time  = time.Millisecond * 10
 	query_denom = "uluna"
 	memo        = "yay \\o/"
 )
 
 func main() {
+	logger.Info("Started")
+
 	privKeyBz, err := key.DerivePrivKeyBz(mnemonic, key.CreateHDPath(0, 0))
 	if err != nil {
 		logger.Error("Error creating priv key", err.Error())
@@ -40,96 +42,119 @@ func main() {
 	addr := msg.AccAddress(privKey.PubKey().Address())
 	logger.Info(fmt.Sprintf("address: [%s]", addr.String()))
 
-	startMonitoring(addr, privKey)
+	c, err := http.New(rpc_client, "/websocket")
+	if err != nil {
+		panic(err)
+	}
+
+	// call Start/Stop if you're subscribing to events
+	err = c.Start()
+	if err != nil {
+		panic(err)
+	}
+	defer c.Stop()
+
+	query := "tm.event = 'NewBlockHeader'"
+	out, err := c.Subscribe(context.Background(), "127.0.0.1", query)
+	if err != nil {
+		panic(err)
+	}
+
+	// Create LCDClient
+	lcdClient := client.NewLCDClient(
+		lcd_client,
+		rpc_client,
+		"columbus-5",
+		msg.NewDecCoinFromDec(query_denom, msg.NewDecFromIntWithPrec(msg.NewInt(200), 2)), // 0.15uusd
+		msg.NewDecFromIntWithPrec(msg.NewInt(30), 1),                                      // gas
+		privKey,
+		time.Second*2, // tx timeout super short
+	)
+
+	toAddr, err := msg.AccAddressFromBech32(dest_wallet)
+	if err != nil {
+		logger.Error("Error creating destination address", err.Error())
+		return
+	}
+
+	for {
+		select {
+		case resultEvent := <-out:
+			// We should have a switch here that performs a validation
+			// depending on the event's type.
+			logger.Info(resultEvent.Query)
+			checkBalanceAndWithdraw(lcdClient, toAddr, addr)
+		case <-c.Quit():
+			logger.Info("Disconnected")
+			return
+		}
+	}
 
 }
 
-func startMonitoring(addr msg.AccAddress, privKey key.PrivKey) {
-	logger.Info("Started")
-	for true {
+func checkBalanceAndWithdraw(lcdClient *client.LCDClient, toAddr msg.AccAddress, addr msg.AccAddress) {
+	balance, err := lcdClient.GetBalance(context.Background(), addr, query_denom)
+	if err != nil {
+		logger.Error("Cannot get balance", err.Error())
+		return
+	}
 
-		// Create LCDClient
-		lcdClient := client.NewLCDClient(
-			lcd_client,
-			rpc_client,
-			"columbus-5",
-			msg.NewDecCoinFromDec(query_denom, msg.NewDecFromIntWithPrec(msg.NewInt(200), 2)), // 0.15uusd
-			msg.NewDecFromIntWithPrec(msg.NewInt(30), 1),                                      // gas
-			privKey,
-			time.Second*2, // tx timeout super short
-		)
+	if balance.Amount == "0" {
+		logger.Error("balance = 0")
+		return
+	}
 
-		toAddr, err := msg.AccAddressFromBech32(dest_wallet)
-		if err != nil {
-			logger.Error("Error creating destination address", err.Error())
-			return
-		}
+	amount, err := strconv.ParseInt(balance.Amount, 10, 64)
+	if err != nil {
+		logger.Error("Cannot convert balance", err.Error())
+		return
+	}
 
-		time.Sleep(sleep_time)
+	logger.Info(fmt.Sprintf("Detected valid balance: %s moving %d", balance, amount))
 
-		balance, err := lcdClient.GetBalance(context.Background(), addr, query_denom)
-		if err != nil {
-			logger.Error("Cannot get balance", err.Error())
-			continue
-		}
+	account, err := lcdClient.LoadAccount(context.Background(), addr)
+	if err != nil {
+		logger.Error("Error loading address", err.Error())
+		return
+	}
 
-		if balance.Amount == "0" {
-			logger.Error("balance = 0")
-			continue
-		}
+	// Create tx
+	var tx *tx2.Builder
+	tx, err = createTransaction(lcdClient, addr, toAddr, amount, account.GetAccountNumber(), account.GetSequence(), balance)
 
-		amount, err := strconv.ParseInt(balance.Amount, 10, 64)
-		if err != nil {
-			logger.Error("Cannot convert balance", err.Error())
-			continue
-		}
-
-		logger.Info(fmt.Sprintf("Detected valid balance: %s moving %d", balance, amount))
-
-		account, err := lcdClient.LoadAccount(context.Background(), addr)
-		if err != nil {
-			logger.Error("Error loading address", err.Error())
-			continue
-		}
-
-		// Create tx
-		var tx *tx2.Builder
-		tx, err = createTransaction(lcdClient, addr, toAddr, amount, account.GetAccountNumber(), account.GetSequence(), balance)
-
-		if err != nil {
-			var errorMsg = err.Error()
-			logger.Error("Error creating transaction", errorMsg)
-			if strings.Contains(errorMsg, "sequence") {
-				i := strings.Index(errorMsg, "expected") + 9
-				e := strings.Index(errorMsg, ", got")
-				seqNumber, err := strconv.ParseUint(errorMsg[i:e], 10, 64)
-				if err != nil {
-					logger.Error(fmt.Sprintf("Could not parse sequence number %s, falbacking to %d", errorMsg[i:e], account.GetSequence()+1))
-					seqNumber = account.GetSequence() + 1
-				}
-
-				logger.Info(fmt.Sprintf("Retrying with sequence %d", seqNumber))
-				// amount - 1luna in case a failed tx consumed some fees
-				tx, err = createTransaction(lcdClient, addr, toAddr, amount-1000000, account.GetAccountNumber(), seqNumber, balance)
-
-				if err != nil {
-					logger.Error("Error retrying transaction", err.Error())
-				} else {
-					logger.Info("Retry Success:", tx)
-				}
-			}
-		}
-
-		if err == nil {
-			// Broadcast
-			res, err := lcdClient.Broadcast(context.Background(), tx)
+	if err != nil {
+		var errorMsg = err.Error()
+		logger.Error("Error creating transaction", errorMsg)
+		if strings.Contains(errorMsg, "sequence") {
+			i := strings.Index(errorMsg, "expected") + 9
+			e := strings.Index(errorMsg, ", got")
+			seqNumber, err := strconv.ParseUint(errorMsg[i:e], 10, 64)
 			if err != nil {
-				logger.Error("Error broadcasting tx", err)
-				// panic(err) uncomment for stacktrace on exception
+				logger.Error(fmt.Sprintf("Could not parse sequence number %s, falbacking to %d", errorMsg[i:e], account.GetSequence()+1))
+				seqNumber = account.GetSequence() + 1
 			}
-			logger.Info("Success:", res)
-			time.Sleep(2500) // wait a bit
+
+			logger.Info(fmt.Sprintf("Retrying with sequence %d", seqNumber))
+			// amount - 1luna in case a failed tx consumed some fees
+			tx, err = createTransaction(lcdClient, addr, toAddr, amount-1000000, account.GetAccountNumber(), seqNumber, balance)
+
+			if err != nil {
+				logger.Error("Error retrying transaction", err.Error())
+			} else {
+				logger.Info("Retry Success:", tx)
+			}
 		}
+	}
+
+	if err == nil {
+		// Broadcast
+		res, err := lcdClient.Broadcast(context.Background(), tx)
+		if err != nil {
+			logger.Error("Error broadcasting tx", err)
+			// panic(err) uncomment for stacktrace on exception
+		}
+		logger.Info("Success:", res)
+		time.Sleep(2500) // wait a bit
 	}
 
 }

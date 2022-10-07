@@ -20,7 +20,7 @@ var (
 	logger      = log.NewTMLogger(log.NewSyncWriter(os.Stdout)).With("module", "main")
 	mnemonic    = "turn reform life recycle tongue zero run alter trim vibrant note bulk cushion vapor awake barrel inflict pottery cup hurry link nephew chicken bubble"
 	dest_wallet = "terra1p0v3n0t08r4mv6lup5lgthgjuvd58gvlehvxfs"
-	lcd_client  = "http://0.0.0.0:1317"
+	lcd_client  = "https://columbus-lcd.terra.dev"
 	rpc_client  = "http://0.0.0.0:36657"
 	query_denom = "uluna"
 	memo        = "yay \\o/"
@@ -68,7 +68,7 @@ func main() {
 		msg.NewDecCoinFromDec(query_denom, msg.NewDecFromIntWithPrec(msg.NewInt(200), 2)), // 0.15uusd
 		msg.NewDecFromIntWithPrec(msg.NewInt(30), 1),                                      // gas
 		privKey,
-		time.Second*2, // tx timeout super short
+		time.Second*1, // tx timeout super short
 	)
 
 	toAddr, err := msg.AccAddressFromBech32(dest_wallet)
@@ -141,7 +141,24 @@ func checkBalanceAndWithdraw(lcdClient *client.LCDClient, toAddr msg.AccAddress,
 			if err != nil {
 				logger.Error("Error retrying transaction", err.Error())
 			} else {
-				logger.Info("Retry Success:", tx)
+				logger.Info("Retry with new sequence Success:", tx)
+			}
+		}
+		if strings.Contains(errorMsg, "insufficientfunds") {
+			i := strings.Index(errorMsg, "messageindex:0:") + 9
+			e := strings.Index(errorMsg, "ulunaissmallerthan")
+			correctAmount, err := strconv.ParseUint(errorMsg[i:e], 10, 64)
+			if err != nil {
+				logger.Error(fmt.Sprintf("Could not parse new amount %s", errorMsg[i:e]))
+			}
+			logger.Info(fmt.Sprintf("Retrying correct amount %d", correctAmount))
+			// amount - 1luna in case a failed tx consumed some fees
+			tx, err = createTransaction(lcdClient, addr, toAddr, int64(correctAmount), account.GetAccountNumber(), account.GetSequence(), balance)
+
+			if err != nil {
+				logger.Error("Error retrying transaction", err.Error())
+			} else {
+				logger.Info("Retry with new amount Success:", tx)
 			}
 		}
 	}

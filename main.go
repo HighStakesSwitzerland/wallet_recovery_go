@@ -2,45 +2,74 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
-	"github.com/HighStakesSwitzerland/wallet_recovery_go/client"
-	"github.com/HighStakesSwitzerland/wallet_recovery_go/key"
-	"github.com/HighStakesSwitzerland/wallet_recovery_go/msg"
-	tx2 "github.com/HighStakesSwitzerland/wallet_recovery_go/tx"
-	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/client/tx"
+	"github.com/cosmos/cosmos-sdk/crypto/hd"
+	"github.com/cosmos/cosmos-sdk/crypto/keyring"
+	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
+	"github.com/cosmos/cosmos-sdk/simapp"
+	typestx "github.com/cosmos/cosmos-sdk/types/tx"
+	"github.com/cosmos/cosmos-sdk/types/tx/signing"
+	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
+	"github.com/cosmos/go-bip39"
+	"github.com/decred/dcrd/bech32"
+	"google.golang.org/grpc"
+
+	"github.com/cosmos/cosmos-sdk/types"
 	"github.com/tendermint/tendermint/libs/log"
 	"github.com/tendermint/tendermint/rpc/client/http"
 	"os"
-	"strconv"
-	"strings"
-	"time"
 )
 
 var (
 	logger      = log.NewTMLogger(log.NewSyncWriter(os.Stdout)).With("module", "main")
 	mnemonic    = "turn reform life recycle tongue zero run alter trim vibrant note bulk cushion vapor awake barrel inflict pottery cup hurry link nephew chicken bubble"
-	dest_wallet = "terra1p0v3n0t08r4mv6lup5lgthgjuvd58gvlehvxfs"
-	lcd_client  = "https://columbus-lcd.terra.dev"
-	rpc_client  = "http://0.0.0.0:36657"
-	query_denom = "uluna"
+	dest_wallet = "secret16mu3ttz3u3dj5fppvms86vm0jv59rllyza8pmq"
+	lcd_client  = "https://lcd.testnet.secretsaturn.net"
+	rpc_client  = "https://rpc.pulsar.scrttestnet.com:443"
+	grpc_client = "grpcbin.pulsar.scrttestnet.com:9099"
+	query_denom = "uscrt"
 	memo        = "yay \\o/"
 )
 
 func main() {
 	logger.Info("Started")
 
-	privKeyBz, err := key.DerivePrivKeyBz(mnemonic, key.CreateHDPath(0, 0))
+	seed := bip39.NewSeed(mnemonic, "")
+	fmt.Println("Seed: ", hex.EncodeToString(seed)) // Seed:  dd5ffa7088c0fa4c665085bca7096a61e42ba92e7243a8ad7fbc6975a4aeea1845c6b668ebacd024fd2ca215c6cd510be7a9815528016af3a5e6f47d1cca30dd
+
+	master, ch := hd.ComputeMastersFromSeed(seed)
+	path := "m/44'/118'/0'/0/0'"
+	priv, err := hd.DerivePrivateKeyForPath(master, ch, path)
 	if err != nil {
-		logger.Error("Error creating priv key", err.Error())
-		return
+		panic(err)
 	}
-	privKey, err := key.PrivKeyGen(privKeyBz)
+	fmt.Println("Derivation Path: ", path)                 // Derivation Path:  m/44'/118'/0'/0/0'
+	fmt.Println("Private Key: ", hex.EncodeToString(priv)) // Private Key:  69668f2378b43009b16b5c6eb5e405d9224ca2a326a65a17919e567105fa4e5a
+
+	privKey := secp256k1.PrivKey{Key: priv}
+	pubKey := privKey.PubKey()
+
+	fmt.Println("Public Key: ", hex.EncodeToString(pubKey.Bytes())) // Public Key:  03de79435cbc8a799efc24cdce7d3b180fb014d5f19949fb8d61de3f21b9f6c1f8
+
+	decodeString, err := hex.DecodeString(fmt.Sprintf("04%x", pubKey.Bytes()))
 	if err != nil {
-		logger.Error("Error creating priv key", err.Error())
-		return
+		panic(err)
 	}
-	addr := msg.AccAddress(privKey.PubKey().Address())
-	logger.Info(fmt.Sprintf("address: [%s]", addr.String()))
+
+	// Convert test data to base32:
+	conv, err := bech32.ConvertBits(decodeString, 8, 5, true)
+	if err != nil {
+		fmt.Println("Error:", err)
+	}
+	encoded, err := bech32.Encode("secret", conv) //TODO: global variable
+	if err != nil {
+		fmt.Println("Error:", err)
+	}
+
+	// Show the encoded data.
+	fmt.Println("Wallet Address:", encoded)
 
 	c, err := http.New(rpc_client, "/websocket")
 	if err != nil {
@@ -60,22 +89,71 @@ func main() {
 		panic(err)
 	}
 
-	// Create LCDClient
-	lcdClient := client.NewLCDClient(
-		lcd_client,
-		rpc_client,
-		"columbus-5",
-		msg.NewDecCoinFromDec(query_denom, msg.NewDecFromIntWithPrec(msg.NewInt(2000), 2)), // 0.15uusd
-		msg.NewDecFromIntWithPrec(msg.NewInt(30), 1),                                       // gas
-		privKey,
-		time.Second*1, // tx timeout super short
-	)
-
-	toAddr, err := msg.AccAddressFromBech32(dest_wallet)
+	toAddr, err := types.GetFromBech32(dest_wallet, "secret")
 	if err != nil {
-		logger.Error("Error creating destination address", err.Error())
-		return
+		panic(err)
 	}
+	err = types.VerifyAddressFormat(toAddr)
+	if err != nil {
+		panic(err)
+	}
+
+	fromAddr, err := types.GetFromBech32(encoded, "secret")
+	if err != nil {
+		panic(err)
+	}
+	err = types.VerifyAddressFormat(toAddr)
+	if err != nil {
+		panic(err)
+	}
+
+	msg1 := banktypes.NewMsgSend(fromAddr, toAddr, types.NewCoins(types.NewInt64Coin("atom", 12)))
+
+	encCfg := simapp.MakeTestEncodingConfig()
+
+	// Create a new TxBuilder.
+	txBuilder := encCfg.TxConfig.NewTxBuilder()
+
+	err = txBuilder.SetMsgs(msg1)
+	if err != nil {
+		panic(err)
+	}
+
+	tmpDir, _ := os.MkdirTemp("", ".wallet_recovery_go")
+	kb, err := keyring.New(types.KeyringServiceName(), keyring.BackendMemory, tmpDir, nil)
+
+	_, err = kb.NewAccount("memory", mnemonic,
+		"passphrase", path, hd.Secp256k1)
+	if err != nil {
+		panic(err)
+	}
+
+	txFactory := tx.Factory{}
+	txFactory = txFactory.
+		WithChainID("pulsar-1").
+		WithMemo("my memo").
+		WithKeybase(kb).
+		WithTxConfig(encCfg.TxConfig).
+		WithSignMode(signing.SignMode_SIGN_MODE_DIRECT)
+
+	err = tx.Sign(txFactory, keyring.BackendMemory, txBuilder, false)
+	if err != nil {
+		panic(err)
+	}
+
+	txJSONBytes, err := encCfg.TxConfig.TxJSONEncoder()(txBuilder.GetTx())
+	if err != nil {
+		panic(err)
+	}
+	txJSON := string(txJSONBytes)
+	logger.Info("TX:", txJSON)
+
+	txBytes, err := encCfg.TxConfig.TxEncoder()(txBuilder.GetTx())
+	if err != nil {
+		panic(err)
+	}
+
+	sendTx(txBytes)
 
 	for {
 		select {
@@ -83,7 +161,7 @@ func main() {
 			// We should have a switch here that performs a validation
 			// depending on the event's type.
 			logger.Info(resultEvent.Query)
-			checkBalanceAndWithdraw(lcdClient, toAddr, addr)
+			//checkBalanceAndWithdraw(lcdClient, toAddr, addr)
 		case <-c.Quit():
 			logger.Info("Disconnected")
 			return
@@ -92,6 +170,35 @@ func main() {
 
 }
 
+func sendTx(txBytes []byte) {
+	// --snip--
+
+	// Create a connection to the gRPC server.
+	grpcConn, _ := grpc.Dial(
+		grpc_client,         // Or your gRPC server address.
+		grpc.WithInsecure(), // The Cosmos SDK doesn't support any transport security mechanism.
+	)
+	defer grpcConn.Close()
+
+	// Broadcast the tx via gRPC. We create a new client for the Protobuf Tx
+	// service.
+	txClient := typestx.NewServiceClient(grpcConn)
+	// We then call the BroadcastTx method on this client.
+	grpcRes, err := txClient.BroadcastTx(
+		context.Background(),
+		&typestx.BroadcastTxRequest{
+			Mode:    typestx.BroadcastMode_BROADCAST_MODE_SYNC,
+			TxBytes: txBytes, // Proto-binary of the signed transaction, see previous step.
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(grpcRes.TxResponse.Code) // Should be `0` if the tx is successful
+}
+
+/*
 func checkBalanceAndWithdraw(lcdClient *client.LCDClient, toAddr msg.AccAddress, addr msg.AccAddress) {
 	balance, err := lcdClient.GetBalance(context.Background(), addr, query_denom)
 	if err != nil {
@@ -194,3 +301,4 @@ func createTransaction(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr 
 			Balance:       balance,
 		})
 }
+*/

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"github.com/HighStakesSwitzerland/wallet_recovery_go/key"
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	"github.com/cosmos/cosmos-sdk/crypto/hd"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
@@ -18,13 +19,12 @@ import (
 
 	"github.com/cosmos/cosmos-sdk/types"
 	"github.com/tendermint/tendermint/libs/log"
-	"github.com/tendermint/tendermint/rpc/client/http"
 	"os"
 )
 
 var (
 	logger      = log.NewTMLogger(log.NewSyncWriter(os.Stdout)).With("module", "main")
-	mnemonic    = "turn reform life recycle tongue zero run alter trim vibrant note bulk cushion vapor awake barrel inflict pottery cup hurry link nephew chicken bubble"
+	mnemonic    = "grant rice replace explain federal release fix clever romance raise often wild taxi quarter soccer fiber love must tape steak together observe swap guitar"
 	dest_wallet = "secret16mu3ttz3u3dj5fppvms86vm0jv59rllyza8pmq"
 	lcd_client  = "https://lcd.testnet.secretsaturn.net"
 	rpc_client  = "https://rpc.pulsar.scrttestnet.com:443"
@@ -34,31 +34,30 @@ var (
 )
 
 func main() {
+	types.GetConfig().SetBech32PrefixForAccount("secret", "secretpub")
+
 	logger.Info("Started")
 
-	seed := bip39.NewSeed(mnemonic, "")
-	fmt.Println("Seed: ", hex.EncodeToString(seed)) // Seed:  dd5ffa7088c0fa4c665085bca7096a61e42ba92e7243a8ad7fbc6975a4aeea1845c6b668ebacd024fd2ca215c6cd510be7a9815528016af3a5e6f47d1cca30dd
-
+	seed, _ := bip39.NewSeedWithErrorChecking(mnemonic, "")
+	fmt.Println("Seed: ", hex.EncodeToString(seed))
 	master, ch := hd.ComputeMastersFromSeed(seed)
-	path := "m/44'/118'/0'/0/0'"
+	path := "m/44'/529'/0'/0/0"
 	priv, err := hd.DerivePrivateKeyForPath(master, ch, path)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("Derivation Path: ", path)                 // Derivation Path:  m/44'/118'/0'/0/0'
-	fmt.Println("Private Key: ", hex.EncodeToString(priv)) // Private Key:  69668f2378b43009b16b5c6eb5e405d9224ca2a326a65a17919e567105fa4e5a
-
-	privKey := secp256k1.PrivKey{Key: priv}
+	fmt.Println("Derivation Path: ", path)
+	fmt.Println("Private Key: ", hex.EncodeToString(priv))
+	privKey := &secp256k1.PrivKey{Key: priv}
 	pubKey := privKey.PubKey()
 
-	fmt.Println("Public Key: ", hex.EncodeToString(pubKey.Bytes())) // Public Key:  03de79435cbc8a799efc24cdce7d3b180fb014d5f19949fb8d61de3f21b9f6c1f8
-
+	fmt.Println("Public Key: ", hex.EncodeToString(pubKey.Bytes()))
+	fmt.Println("Public Address: ", pubKey.Address())
 	decodeString, err := hex.DecodeString(fmt.Sprintf("04%x", pubKey.Bytes()))
 	if err != nil {
 		panic(err)
 	}
 
-	// Convert test data to base32:
 	conv, err := bech32.ConvertBits(decodeString, 8, 5, true)
 	if err != nil {
 		fmt.Println("Error:", err)
@@ -71,23 +70,24 @@ func main() {
 	// Show the encoded data.
 	fmt.Println("Wallet Address:", encoded)
 
-	c, err := http.New(rpc_client, "/websocket")
+	privKeyBz, err := key.DerivePrivKeyBz(mnemonic, key.CreateHDPath(0, 0))
 	if err != nil {
-		panic(err)
+		logger.Error("Error creating priv key", err.Error())
+		return
+	}
+	privKey2, err := key.PrivKeyGen(privKeyBz)
+	if err != nil {
+		logger.Error("Error creating priv key", err.Error())
+		return
 	}
 
-	// call Start/Stop if you're subscribing to events
-	err = c.Start()
-	if err != nil {
-		panic(err)
-	}
-	defer c.Stop()
+	fmt.Println("Pubkey Wallet Address:", privKey.PubKey().Address().String())
+	encoded = types.AccAddress(privKey.PubKey().Address()).String()
+	fmt.Println("Correct Wallet Address:", encoded)
 
-	query := "tm.event = 'NewBlockHeader'"
-	out, err := c.Subscribe(context.Background(), "127.0.0.1", query)
-	if err != nil {
-		panic(err)
-	}
+	fmt.Println("Pubkey Wallet Address2:", privKey2.PubKey().Address().String())
+	addr2 := types.AccAddress(privKey2.PubKey().Address())
+	fmt.Println("Correct Wallet Address2:", addr2.String())
 
 	toAddr, err := types.GetFromBech32(dest_wallet, "secret")
 	if err != nil {
@@ -107,11 +107,10 @@ func main() {
 		panic(err)
 	}
 
-	msg1 := banktypes.NewMsgSend(fromAddr, toAddr, types.NewCoins(types.NewInt64Coin("atom", 12)))
-
-	encCfg := simapp.MakeTestEncodingConfig()
+	msg1 := banktypes.NewMsgSend(fromAddr, toAddr, types.NewCoins(types.NewInt64Coin("scrt", 12)))
 
 	// Create a new TxBuilder.
+	encCfg := simapp.MakeTestEncodingConfig()
 	txBuilder := encCfg.TxConfig.NewTxBuilder()
 
 	err = txBuilder.SetMsgs(msg1)
@@ -155,18 +154,38 @@ func main() {
 
 	sendTx(txBytes)
 
-	for {
-		select {
-		case resultEvent := <-out:
-			// We should have a switch here that performs a validation
-			// depending on the event's type.
-			logger.Info(resultEvent.Query)
-			//checkBalanceAndWithdraw(lcdClient, toAddr, addr)
-		case <-c.Quit():
-			logger.Info("Disconnected")
-			return
+	/*
+		c, err := http.New(rpc_client, "/websocket")
+		if err != nil {
+			panic(err)
 		}
-	}
+
+		// call Start/Stop if you're subscribing to events
+		err = c.Start()
+		if err != nil {
+			panic(err)
+		}
+		defer c.Stop()
+
+		query := "tm.event = 'NewBlockHeader'"
+		out, err := c.Subscribe(context.Background(), "127.0.0.1", query)
+		if err != nil {
+			panic(err)
+		}
+
+			for {
+				select {
+				case resultEvent := <-out:
+					// We should have a switch here that performs a validation
+					// depending on the event's type.
+					logger.Info(resultEvent.Query)
+					//checkBalanceAndWithdraw(lcdClient, toAddr, addr)
+				case <-c.Quit():
+					logger.Info("Disconnected")
+					return
+				}
+			}
+	*/
 
 }
 
@@ -195,7 +214,7 @@ func sendTx(txBytes []byte) {
 		panic(err)
 	}
 
-	fmt.Println(grpcRes.TxResponse.Code) // Should be `0` if the tx is successful
+	fmt.Println(grpcRes.TxResponse) // Should be `0` if the tx is successful
 }
 
 /*

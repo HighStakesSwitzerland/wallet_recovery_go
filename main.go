@@ -1,40 +1,28 @@
 package main
 
 import (
-	"fmt"
 	"github.com/HighStakesSwitzerland/wallet_recovery_go/addr"
+	"github.com/HighStakesSwitzerland/wallet_recovery_go/config"
 	"github.com/HighStakesSwitzerland/wallet_recovery_go/tx"
 	"github.com/cosmos/cosmos-sdk/types"
-)
-
-var (
-	mnemonic        = "grant rice replace explain federal release fix clever romance raise often wild taxi quarter soccer fiber love must tape steak together observe swap guitar"
-	dest_wallet     = "secret16mu3ttz3u3dj5fppvms86vm0jv59rllyza8pmq"
-	lcd_client      = "https://lcd.testnet.secretsaturn.net"
-	rpc_client      = "https://rpc.pulsar.scrttestnet.com:443"
-	grpc_client     = "grpcbin.pulsar.scrttestnet.com:9099"
-	bech32_prefix   = "secret"
-	hdPath          = "m/44'/529'/0'/0/0" // cf cosmos.directory (118 = cosmos, 330 = terra, 529 = secret...)
-	coins_denom     = "uscrt"
-	amount_to_snipe = 1_000_000 // amount for the snipe tx (only once on next block)
-	amount_to_spam  = 250_000   // amount for the spam txs (many many tx sent on next block)
-	fees_amount     = 1_000
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"os"
 )
 
 func main() {
+	defer config.Logger.Sync()
 	// set prefix globally
-	types.GetConfig().SetBech32PrefixForAccount(bech32_prefix, bech32_prefix)
+	types.GetConfig().SetBech32PrefixForAccount(config.Bech32Prefix, config.Bech32Prefix+"pub")
 
-	fromAddr, toAddr, kb := addr.GenerateAddresses(mnemonic, hdPath, dest_wallet)
+	fromAddr, toAddr, kb := addr.GenerateAddresses(config.Mnemonic, config.HdPath, config.Dest_wallet)
 
-	fmt.Println("Started")
+	config.Logger.Info("Started")
 
-	grpcConn := tx.SetupGrpc(grpc_client)
+	grpcConn := tx.SetupGrpc(config.Grpc_client)
 	defer grpcConn.Close() // close connection on program exit
 
-	coins := types.NewCoins(types.NewInt64Coin("scrt", 12))
-
-	txBytes := tx.CreateSendTx(fromAddr, toAddr, coins, kb)
+	txBytes := tx.CreateSendTx(fromAddr, toAddr, config.Amount_to_snipe, config.Fees_amount, kb)
 
 	tx.SendTx(txBytes)
 
@@ -177,3 +165,8 @@ func createTransaction(lcdClient *client.LCDClient, addr msg.AccAddress, toAddr 
 		})
 }
 */
+
+func init() {
+	logger := zap.New(zapcore.NewCore(zapcore.NewConsoleEncoder(zap.NewProductionEncoderConfig()), os.Stdout, zap.DebugLevel))
+	config.Logger = logger
+}

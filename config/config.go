@@ -10,9 +10,9 @@ var (
 
 	Mnemonic        = "grant rice replace explain federal release fix clever romance raise often wild taxi quarter soccer fiber love must tape steak together observe swap guitar"
 	Dest_wallet     = "cosmos16mu3ttz3u3dj5fppvms86vm0jv59rllyqcngxu"
-	Lcd_client      = "https://lcd.testnet.secretsaturn.net"
-	Rpc_client      = "https://rpc.pulsar.scrttestnet.com:443"
-	Grpc_client     = "cosmos-grpc.polkachu.com:14990"
+	Lcd_client      = "https://secret-4.api.trivium.network:1317"
+	Rpc_client      = "https://secret-4.api.trivium.network:26657" // for websocket queries
+	Grpc_client     = "https://secret-4.api.trivium.network:9091"  // to post tx
 	Bech32Prefix    = "cosmos"
 	Chain_id        = "cosmoshub-4"
 	HdPath          = "m/44'/118'/0'/0/0" // cf cosmos.directory (118 = cosmos, 330 = terra, 529 = secret...)

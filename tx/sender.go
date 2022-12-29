@@ -33,7 +33,7 @@ func SetupGrpc(grpcUrl string) *grpc.ClientConn {
 	return grpcConn
 }
 
-func SendTx(txBytes []byte) uint64 {
+func SendTx(txBytes []byte) int64 {
 	txClient := tx.NewServiceClient(grpcConn)
 	grpcRes, err := txClient.BroadcastTx(
 		context.Background(),
@@ -73,5 +73,5 @@ func SendTx(txBytes []byte) uint64 {
 
 		config.Logger.Error("TX FAILED!!", zap.Uint32("code", grpcRes.TxResponse.Code), zap.String("description", desc))
 	}
-	return uint64(grpcRes.TxResponse.Code)
+	return int64(grpcRes.TxResponse.Code)
 }

@@ -1,6 +1,7 @@
 package tx
 
 import (
+	"github.com/HighStakesSwitzerland/wallet_recovery_go/addr"
 	"github.com/HighStakesSwitzerland/wallet_recovery_go/config"
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
@@ -10,7 +11,7 @@ import (
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 )
 
-func CreateSendTx(fromAddr []byte, toAddr []byte, coins types.Coins, fees types.Coins, kb keyring.Keyring) []byte {
+func CreateSendTx(fromAddr []byte, toAddr []byte, coins types.Coins) []byte {
 
 	sendMsg := banktypes.NewMsgSend(fromAddr, toAddr, coins)
 
@@ -25,16 +26,16 @@ func CreateSendTx(fromAddr []byte, toAddr []byte, coins types.Coins, fees types.
 
 	txFactory := tx.Factory{}
 	txFactory = txFactory.
-		WithChainID(config.Chain_id).
+		WithChainID(config.ChainId).
 		WithSimulateAndExecute(true).
 		WithMemo(config.Memo).
-		WithKeybase(kb).
+		WithKeybase(addr.Keyring).
 		WithTxConfig(encCfg.TxConfig).
 		WithSignMode(signing.SignMode_SIGN_MODE_DIRECT).WithAccountNumber(1470138)
 
 	// set fees
-	txBuilder.SetFeeAmount(fees)
-	txBuilder.SetGasLimit(20000)
+	txBuilder.SetFeeAmount(config.FeesAmount)
+	txBuilder.SetGasLimit(config.GasLimit)
 
 	err = tx.Sign(txFactory, keyring.BackendMemory, txBuilder, false)
 	if err != nil {
@@ -47,7 +48,7 @@ func CreateSendTx(fromAddr []byte, toAddr []byte, coins types.Coins, fees types.
 	}
 	txJSON := string(txJSONBytes)
 
-	config.Logger.Info("TX to send" + txJSON)
+	config.Logger.Debug("TX to send" + txJSON)
 
 	txBytes, err := encCfg.TxConfig.TxEncoder()(txBuilder.GetTx())
 	if err != nil {

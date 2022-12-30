@@ -34,6 +34,7 @@ func SetupGrpc(grpcUrl string) *grpc.ClientConn {
 }
 
 func SendTx(txBytes []byte) int64 {
+	config.Logger.Info("Sending TX")
 	txClient := tx.NewServiceClient(grpcConn)
 	grpcRes, err := txClient.BroadcastTx(
 		context.Background(),

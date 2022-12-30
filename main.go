@@ -43,6 +43,7 @@ func main() {
 	setupSnipingTx()
 
 	setupUnbondingListener()
+
 }
 
 // setupSnipingTx /*
@@ -51,19 +52,22 @@ func setupSnipingTx() {
 	s := gocron.NewScheduler(time.UTC)
 
 	undelegations, err := lcdclient.GetPendingUndelegations()
+	if err != nil {
+		config.Logger.Warn("Some fields could not be read: " + err.Error())
+	}
 
 	for _, unbond := range undelegations.UnbondingResponses {
 		for _, entry := range unbond.Entries {
 			local := entry.CompletionTime.Local()
 			cronTime := fmt.Sprintf("%d %d %d %d * *", local.Second(), // add 1 second after unbond just in case? Or send tx on next block?
 				local.Minute(), local.Hour(), local.Day())
-			balance := entry.Balance.Sub(config.FeesAmount.AmountOf(config.CoinsDenom))
-			txBytes := tx.CreateSendTx(addr.FromAddr, addr.ToAddr, types.NewCoins(types.NewInt64Coin("uscrt", balance.Int64())))
-			task := func(transaction []byte) {
+			balance := entry.Balance.Sub(config.FeesAmount.Amount)
+			task := func() {
 				config.Logger.Info("Starting Cron job!")
-				tx.SendTx(transaction)
+				txBytes := tx.CreateSendTx(addr.FromAddr, addr.ToAddr, types.NewCoins(types.NewInt64Coin(config.CoinsDenom, balance.Int64())))
+				tx.SendTx(txBytes)
 			}
-			_, err = s.CronWithSeconds(cronTime).Tag(balance.String()).Do(task, txBytes)
+			_, err = s.CronWithSeconds(cronTime).Tag(balance.String()).Do(task)
 			if err != nil {
 				config.Logger.Error("Cannot register Cron task for sniping TX!", zap.Error(err))
 			}
@@ -92,14 +96,77 @@ func setupUnbondingListener() {
 	defer rpcConn.Stop()
 	config.Logger.Info("Connected to RPC websocket " + config.RpcClientUrl)
 
-	//query := fmt.Sprintf("%s.%s='%s'", types2.EventTypeCompleteUnbonding, types2.AttributeKeyDelegator, "secret19spr25jmjlvv35alu4cnxx4em598ncr326px4a")  // or NewBlockHeader
-	testQuery := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyValidator, "secretvaloper1jgx4pn3acae9esq5zha5ym3kzhq6x60frjwkrp")
-	out, err := rpcConn.Subscribe(context.Background(), "127.0.0.1", testQuery)
+	go func() {
+		query := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyValidator, "osmovaloper1hjct6q7npsspsg3dgvzk3sdf89spmlpf6t4agt") // or NewBlockHeader
+		//testQuery := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyDelegator, "osmo1cxvu6m0fatpdtm2286yprkzyrzskjd4zs7d8yn")
+		out, err := rpcConn.Subscribe(context.Background(), "127.0.0.1", query)
+		if err != nil {
+			panic(err)
+		}
+
+		config.Logger.Info(fmt.Sprintf("Listening for unbond events for wallet with query [%s]", query))
+		for {
+			select {
+			case resultEvent := <-out:
+				withdrawUnlockedAmount(resultEvent.Events)
+			case <-rpcConn.Quit():
+				config.Logger.Info("Disconnected from websocket") // TODO: reconnect
+				return
+			}
+		}
+
+	}()
+
+	go func() {
+		query := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyValidator, "osmovaloper1gy0nyn2hscxxayj2pdyu8axmfvv75nnvhc079s") // or NewBlockHeader
+		//testQuery := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyDelegator, "osmo1cxvu6m0fatpdtm2286yprkzyrzskjd4zs7d8yn")
+		out, err := rpcConn.Subscribe(context.Background(), "127.0.0.1", query)
+		if err != nil {
+			panic(err)
+		}
+
+		config.Logger.Info(fmt.Sprintf("Listening for unbond events for wallet with query [%s]", query))
+		for {
+			select {
+			case resultEvent := <-out:
+				withdrawUnlockedAmount(resultEvent.Events)
+			case <-rpcConn.Quit():
+				config.Logger.Info("Disconnected from websocket") // TODO: reconnect
+				return
+			}
+		}
+
+	}()
+
+	go func() {
+		query := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyValidator, "osmovaloper1ej2es5fjztqjcd4pwa0zyvaevtjd2y5w37wr9t") // or NewBlockHeader
+		//testQuery := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyDelegator, "osmo1cxvu6m0fatpdtm2286yprkzyrzskjd4zs7d8yn")
+		out, err := rpcConn.Subscribe(context.Background(), "127.0.0.1", query)
+		if err != nil {
+			panic(err)
+		}
+
+		config.Logger.Info(fmt.Sprintf("Listening for unbond events for wallet with query [%s]", query))
+		for {
+			select {
+			case resultEvent := <-out:
+				withdrawUnlockedAmount(resultEvent.Events)
+			case <-rpcConn.Quit():
+				config.Logger.Info("Disconnected from websocket") // TODO: reconnect
+				return
+			}
+		}
+
+	}()
+
+	query := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyValidator, "osmovaloper1w4x44ek799hvg97x0mfwu6gg5dww2r8fdpqql4") // or NewBlockHeader
+	//testQuery := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyDelegator, "osmo1cxvu6m0fatpdtm2286yprkzyrzskjd4zs7d8yn")
+	out, err := rpcConn.Subscribe(context.Background(), "127.0.0.1", query)
 	if err != nil {
 		panic(err)
 	}
 
-	config.Logger.Info(fmt.Sprintf("Listening for unbond events for wallet with query [%s]", testQuery))
+	config.Logger.Info(fmt.Sprintf("Listening for unbond events for wallet with query [%s]", query))
 	for {
 		select {
 		case resultEvent := <-out:
@@ -109,13 +176,58 @@ func setupUnbondingListener() {
 			return
 		}
 	}
+
 }
 
 func withdrawUnlockedAmount(events map[string][]string) {
+	config.Logger.Info("Got new event", zap.Any("object", events))
 
-	//amountUnbonded := events["unbond.amount"]
+	recipients := events["transfer.recipient"]
+	isValid := false
 
-	// Send tx
-	// tx.SendTx(txBytes)
+	for i := 0; i < len(recipients); i++ {
+		if recipients[i] == addr.Bech32wallet {
+			isValid = true
+			config.Logger.Info("Matched on transfer.recipient")
+		}
+	}
+
+	sender := events["transfer.sender"]
+	for i := 0; i < len(sender); i++ {
+		if sender[i] == addr.Bech32wallet {
+			isValid = true
+			config.Logger.Info("Matched on transfer.sender")
+		}
+	}
+
+	msgsender := events["message.sender"]
+	for i := 0; i < len(msgsender); i++ {
+		if msgsender[i] == addr.Bech32wallet {
+			isValid = true
+			config.Logger.Info("Matched on message.sender")
+		}
+	}
+
+	coinspent := events["coin_spent.spender"]
+	for i := 0; i < len(coinspent); i++ {
+		if coinspent[i] == addr.Bech32wallet {
+			isValid = true
+			config.Logger.Info("Matched on coin_spent.spender")
+		}
+	}
+
+	if !isValid {
+		config.Logger.Info("Ignoring event, not for our wallet")
+		return
+	}
+
+	amountUnbonded := events["unbond.amount"][0]
+	coin, err := types.ParseCoinsNormalized(amountUnbonded)
+
+	if err != nil {
+		config.Logger.Error("Could not parse coins from undelegate event!", zap.Error(err))
+	}
+	txBytes := tx.CreateSendTx(addr.FromAddr, addr.ToAddr, coin.Sub(config.FeesAmount))
+	tx.SendTx(txBytes)
 
 }

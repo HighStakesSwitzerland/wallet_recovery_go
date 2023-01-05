@@ -1,22 +1,18 @@
 package addr
 
 import (
-	"encoding/hex"
 	"github.com/HighStakesSwitzerland/wallet_recovery_go/config"
 	"github.com/cosmos/cosmos-sdk/crypto/hd"
-	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
-	"github.com/cosmos/cosmos-sdk/simapp"
 	"github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/go-bip39"
-	"os"
 )
 
 var (
 	FromAddr     []byte
 	ToAddr       []byte
 	Bech32wallet string
-	Keyring      keyring.Keyring
+	PrivKey      *secp256k1.PrivKey
 )
 
 // GenerateAddresses /*
@@ -25,19 +21,21 @@ var (
 func GenerateAddresses() {
 	seed, _ := bip39.NewSeedWithErrorChecking(config.Mnemonic, "")
 	master, ch := hd.ComputeMastersFromSeed(seed)
-	_, err := hd.DerivePrivateKeyForPath(master, ch, config.HdPath)
+	mnemonicPriv, err := hd.DerivePrivateKeyForPath(master, ch, config.HdPath)
 	if err != nil {
 		panic(err)
 	}
 	config.Logger.Info("Using Derivation Path: " + config.HdPath)
 
-	decodeString, err := hex.DecodeString("1daac0ba8a73b9ea36ab70aca2ce43ec06c3ffa9c45e159ac781484d84a5d9ef") // TODO: à AirV
-	if err != nil {
-		panic(err)
-	}
-	privKey := &secp256k1.PrivKey{Key: decodeString}
+	//decodeString, err := hex.DecodeString("1daac0ba8a73b9ea36ab70aca2ce43ec06c3ffa9c45e159ac781484d84a5d9ef") // TODO: à AirV
+	//if err != nil {
+	//	panic(err)
+	//}
+	//PrivKey = &secp256k1.PrivKey{Key: decodeString}
 
-	Bech32wallet = types.AccAddress(privKey.PubKey().Address()).String()
+	PrivKey = &secp256k1.PrivKey{Key: mnemonicPriv}
+
+	Bech32wallet = types.AccAddress(PrivKey.PubKey().Address()).String()
 
 	config.Logger.Info("Wallet Address decoded: " + Bech32wallet)
 
@@ -54,19 +52,8 @@ func GenerateAddresses() {
 	if err != nil {
 		panic(err)
 	}
-	err = types.VerifyAddressFormat(ToAddr)
+	err = types.VerifyAddressFormat(FromAddr)
 	if err != nil {
 		panic(err)
 	}
-
-	// save keys to temporary keyring
-	tmpDir, _ := os.MkdirTemp("", ".wallet_recovery_go") // TODO: if multiple instances of this app runs, keyring can be overwritten?
-	cdc := simapp.MakeTestEncodingConfig().Codec
-	Keyring, err = keyring.New(types.KeyringServiceName(), keyring.BackendMemory, tmpDir, nil, cdc)
-
-	_, err = Keyring.NewAccount("memory", config.Mnemonic, "", config.HdPath, hd.Secp256k1)
-	if err != nil {
-		panic(err)
-	}
-
 }

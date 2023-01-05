@@ -40,9 +40,13 @@ func main() {
 	defer grpcConn.Close() // close connection on program exit
 	config.Logger.Info("Connected to gRPC " + config.GrpcClientUrl)
 
-	setupSnipingTx()
+	txBytes := tx.CreateSendTx(addr.FromAddr, addr.ToAddr, types.NewCoins(types.NewInt64Coin(config.CoinsDenom, 1000)))
+	config.Logger.Info("Sending TX")
+	tx.SendTx(txBytes)
 
-	setupUnbondingListener()
+	//	setupSnipingTx()
+
+	//	setupUnbondingListener()
 
 }
 
@@ -65,6 +69,7 @@ func setupSnipingTx() {
 			task := func() {
 				config.Logger.Info("Starting Cron job!")
 				txBytes := tx.CreateSendTx(addr.FromAddr, addr.ToAddr, types.NewCoins(types.NewInt64Coin(config.CoinsDenom, balance.Int64())))
+				config.Logger.Info("Sending Sniping TX")
 				tx.SendTx(txBytes)
 			}
 			_, err = s.CronWithSeconds(cronTime).Tag(balance.String()).Do(task)

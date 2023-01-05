@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"time"
 )
 
 var (
@@ -24,6 +25,7 @@ func SetupGrpc(grpcUrl string) *grpc.ClientConn {
 	grpcConn, err = grpc.Dial(
 		*grpcClient,
 		grpc.WithTransportCredentials(insecure.NewCredentials()), // The Cosmos SDK doesn't support any transport security mechanism.
+		grpc.WithTimeout(time.Second*30),
 	)
 
 	if err != nil {

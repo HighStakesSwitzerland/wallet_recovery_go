@@ -98,8 +98,7 @@ func setupUnbondingListener() {
 	config.Logger.Info("Connected to RPC websocket " + config.RpcClientUrl)
 
 	go func() {
-		query := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyValidator, "osmovaloper1hjct6q7npsspsg3dgvzk3sdf89spmlpf6t4agt") // or NewBlockHeader
-		//testQuery := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyDelegator, "osmo1cxvu6m0fatpdtm2286yprkzyrzskjd4zs7d8yn")
+		query := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyValidator, "secretvaloper1x76f2c2cuwa4e3lttjgqeqva0725ftmqvgvfnv") // or NewBlockHeader
 		out, err := rpcConn.Subscribe(context.Background(), "127.0.0.1", query)
 		if err != nil {
 			panic(err)
@@ -119,8 +118,7 @@ func setupUnbondingListener() {
 	}()
 
 	go func() {
-		query := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyValidator, "osmovaloper1gy0nyn2hscxxayj2pdyu8axmfvv75nnvhc079s") // or NewBlockHeader
-		//testQuery := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyDelegator, "osmo1cxvu6m0fatpdtm2286yprkzyrzskjd4zs7d8yn")
+		query := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyValidator, "secretvaloper1xj5ykuzn0mkq9642yxgqmh4ycplzhr2pza25mk") // or NewBlockHeader
 		out, err := rpcConn.Subscribe(context.Background(), "127.0.0.1", query)
 		if err != nil {
 			panic(err)
@@ -139,29 +137,7 @@ func setupUnbondingListener() {
 
 	}()
 
-	go func() {
-		query := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyValidator, "osmovaloper1ej2es5fjztqjcd4pwa0zyvaevtjd2y5w37wr9t") // or NewBlockHeader
-		//testQuery := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyDelegator, "osmo1cxvu6m0fatpdtm2286yprkzyrzskjd4zs7d8yn")
-		out, err := rpcConn.Subscribe(context.Background(), "127.0.0.1", query)
-		if err != nil {
-			panic(err)
-		}
-
-		config.Logger.Info(fmt.Sprintf("Listening for unbond events for wallet with query [%s]", query))
-		for {
-			select {
-			case resultEvent := <-out:
-				withdrawUnlockedAmount(resultEvent.Events)
-			case <-rpcConn.Quit():
-				config.Logger.Info("Disconnected from websocket") // TODO: reconnect
-				return
-			}
-		}
-
-	}()
-
-	query := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyValidator, "osmovaloper1w4x44ek799hvg97x0mfwu6gg5dww2r8fdpqql4") // or NewBlockHeader
-	//testQuery := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyDelegator, "osmo1cxvu6m0fatpdtm2286yprkzyrzskjd4zs7d8yn")
+	query := fmt.Sprintf("%s.%s='%s'", types2.EventTypeUnbond, types2.AttributeKeyValidator, "secretvaloper1ahawe276d250zpxt0xgpfg63ymmu63a0svuvgw") // or NewBlockHeader
 	out, err := rpcConn.Subscribe(context.Background(), "127.0.0.1", query)
 	if err != nil {
 		panic(err)

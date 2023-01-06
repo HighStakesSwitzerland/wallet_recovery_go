@@ -9,10 +9,10 @@ var (
 	Logger *zap.Logger
 
 	Mnemonic                = "ripple cinnamon spread police dance auto gentle inflict gossip solve merge clog"
-	DestinationWalletBech32 = "secret1fc3fzy78ttp0lwuujw7e52rhspxn8uj52zfyne"
-	LcdClientUrl            = "http://212.95.51.215:1317"  // for web queries; http:// required even for localhost
-	RpcClientUrl            = "http://212.95.51.215:26657" // for websocket queries; http:// required even for localhost
-	GrpcClientUrl           = "212.95.51.215:26090"        // to post tx
+	DestinationWalletBech32 = "secret1gcewetsfm006yzvk9r4hmt2jgeur6qc9ntrqay"
+	LcdClientUrl            = "http://127.0.0.1:1317"  // for web queries; http:// required even for localhost
+	RpcClientUrl            = "http://127.0.0.1:26657" // for websocket queries; http:// required even for localhost
+	GrpcClientUrl           = "127.0.0.1:26090"        // to post tx
 	Bech32Prefix            = "secret"
 	ChainId                 = "secret-4"
 	HdPath                  = "m/44'/529'/0'/0/0" // cf cosmos.directory (118 = cosmos, 330 = terra, 529 = secret...)

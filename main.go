@@ -40,13 +40,9 @@ func main() {
 	defer grpcConn.Close() // close connection on program exit
 	config.Logger.Info("Connected to gRPC " + config.GrpcClientUrl)
 
-	txBytes := tx.CreateSendTx(addr.FromAddr, addr.ToAddr, types.NewCoins(types.NewInt64Coin(config.CoinsDenom, 1000)))
-	config.Logger.Info("Sending TX")
-	tx.SendTx(txBytes)
+	setupSnipingTx()
 
-	//	setupSnipingTx()
-
-	//	setupUnbondingListener()
+	setupUnbondingListener()
 
 }
 
